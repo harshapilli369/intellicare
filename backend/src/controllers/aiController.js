@@ -1,17 +1,6 @@
 const aiService = require('../services/aiService');
 const { buildPatientContext } = require('../services/clinicalContext');
-
-// TODO: replaced for post-appointment in #20.
-const buildMockContext = (appointmentId) => ({
-  patientName: 'Test Patient',
-  dateOfBirth: '1980-01-01',
-  medicalHistory: ['Hypertension', 'Type 2 Diabetes'],
-  medications: ['Metformin 500mg', 'Lisinopril 10mg'],
-  allergies: ['Penicillin'],
-  previousNotes: ['Patient reported fatigue at last visit. BP was 140/90.'],
-  intakeForm: { symptoms: 'Headache and dizziness for 3 days', severity: 'moderate' },
-  appointmentReason: 'Follow-up',
-});
+const ClinicalNote = require('../models/mongodb/ClinicalNote');
 
 const generatePreSummary = async (req, res, next) => {
   try {
@@ -34,18 +23,23 @@ const generatePreSummary = async (req, res, next) => {
 
 const generatePostSummary = async (req, res, next) => {
   try {
-    const { appointmentId } = req.params;
+    const appointmentId = Number(req.params.appointmentId);
 
-    // TODO: replace mock with real data once notes/appointment modules are ready
-    const context = {
-      ...buildMockContext(appointmentId),
-      clinicianNotes: req.body.clinicianNotes || 'Patient presented with headache and dizziness. BP 150/95. Adjusted Lisinopril dosage.',
-    };
+    const built = await buildPatientContext(appointmentId);
+    if (!built) return res.status(404).json({ message: 'Appointment not found' });
+
+    // The encounter notes drive the post-appointment summary: those submitted
+    // with the request, or the notes already saved against this appointment.
+    let clinicianNotes = req.body.clinicianNotes;
+    if (!clinicianNotes) {
+      const notes = await ClinicalNote.find({ appointmentId }).sort({ createdAt: 1 });
+      clinicianNotes = notes.map((note) => note.body).join('\n');
+    }
 
     const result = await aiService.generatePostSummary({
-      patientId: context.patientId || 1,
-      appointmentId: Number(appointmentId),
-      context,
+      patientId: built.patientId,
+      appointmentId,
+      context: { ...built.context, clinicianNotes },
     });
 
     res.json({
