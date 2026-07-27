@@ -8,6 +8,7 @@ const rateLimit = require('express-rate-limit');
 const { connectMySQL } = require('./config/mysql');
 const { syncModels } = require('./models/mysql');
 const { connectMongoDB } = require('./config/mongodb');
+const authRoutes = require('./routes/authRoutes');
 const aiRoutes = require('./routes/aiRoutes');
 const errorHandler = require('./middleware/errorHandler');
 
@@ -20,6 +21,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 200 }));
 
+app.use('/api/auth', authRoutes);
 app.use('/api/ai', aiRoutes);
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
