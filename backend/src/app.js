@@ -6,6 +6,7 @@ const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 
 const { connectMySQL } = require('./config/mysql');
+const { syncModels } = require('./models/mysql');
 const { connectMongoDB } = require('./config/mongodb');
 const aiRoutes = require('./routes/aiRoutes');
 const errorHandler = require('./middleware/errorHandler');
@@ -30,6 +31,7 @@ const PORT = process.env.PORT || 5000;
 async function start() {
   try {
     await connectMySQL();
+    await syncModels();
     await connectMongoDB();
   } catch (err) {
     console.error(`Database connection failed: ${err.message}`);
