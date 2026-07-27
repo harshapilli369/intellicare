@@ -143,6 +143,24 @@ npm run dev --prefix frontend   # React on http://localhost:3000
 npm run dev --prefix backend    # Express on http://localhost:5000
 ```
 
+### Seeding the Database
+
+Populate both databases with sample staff, patients, appointments,
+prescriptions, notes, and an AI summary. Safe to re-run — it clears existing
+data first.
+
+```bash
+npm run seed --prefix backend
+```
+
+Seeded accounts (all use the password `Password123!`):
+
+| Role | Email |
+|------|-------|
+| Clinician | `dr.kuteishi@intellicare.ca` |
+| Admin | `admin@intellicare.ca` |
+| Patient | `elias.tobias@example.com` (and five other `<name>@example.com`) |
+
 ---
 
 ## API Overview
