@@ -54,4 +54,16 @@ const login = async (req, res, next) => {
   }
 };
 
-module.exports = { register, login };
+// Returns the account behind the current token, so the frontend can restore the
+// signed-in user without keeping identity in the token alone.
+const me = async (req, res, next) => {
+  try {
+    const user = await User.findByPk(req.user.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json({ success: true, user: publicUser(user) });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { register, login, me };

@@ -3,6 +3,7 @@ const rateLimit = require('express-rate-limit');
 const { body } = require('express-validator');
 
 const authController = require('../controllers/authController');
+const authenticate = require('../middleware/authenticate');
 const validate = require('../middleware/validate');
 
 // Sign-in is the one unauthenticated endpoint that checks a secret, so it is
@@ -36,5 +37,6 @@ router.post(
 );
 
 router.post('/login', loginLimiter, credentials, validate, authController.login);
+router.get('/me', authenticate, authController.me);
 
 module.exports = router;
