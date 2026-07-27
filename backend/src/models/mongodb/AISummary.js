@@ -14,6 +14,12 @@ const aiSummarySchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// The patient view lists a patient's finalized summaries newest first.
+aiSummarySchema.index({ patientId: 1, finalized: 1, createdAt: -1 });
+// Cache lookups match on the hash of the inputs that produced a summary, so a
+// repeated request for the same context is served without calling the model.
+aiSummarySchema.index({ inputHash: 1 });
+
 aiSummarySchema.statics.hashInput = (context) => {
   return crypto.createHash('sha256').update(JSON.stringify(context)).digest('hex');
 };
