@@ -2,18 +2,6 @@ const aiService = require('../services/aiService');
 const { buildPatientContext } = require('../services/clinicalContext');
 const ClinicalNote = require('../models/mongodb/ClinicalNote');
 
-// TODO: replaced for post-appointment in #20.
-const buildMockContext = (appointmentId) => ({
-  patientName: 'Test Patient',
-  dateOfBirth: '1980-01-01',
-  medicalHistory: ['Hypertension', 'Type 2 Diabetes'],
-  medications: ['Metformin 500mg', 'Lisinopril 10mg'],
-  allergies: ['Penicillin'],
-  previousNotes: ['Patient reported fatigue at last visit. BP was 140/90.'],
-  intakeForm: { symptoms: 'Headache and dizziness for 3 days', severity: 'moderate' },
-  appointmentReason: 'Follow-up',
-});
-
 const generatePreSummary = async (req, res, next) => {
   try {
     const appointmentId = Number(req.params.appointmentId);
