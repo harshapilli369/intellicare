@@ -1,5 +1,7 @@
 const aiService = require('../services/aiService');
+const { buildPatientContext } = require('../services/clinicalContext');
 
+// TODO: replaced for post-appointment in #20.
 const buildMockContext = (appointmentId) => ({
   patientName: 'Test Patient',
   dateOfBirth: '1980-01-01',
@@ -13,15 +15,15 @@ const buildMockContext = (appointmentId) => ({
 
 const generatePreSummary = async (req, res, next) => {
   try {
-    const { appointmentId } = req.params;
+    const appointmentId = Number(req.params.appointmentId);
 
-    // TODO: replace mock with real data once patient/appointment modules are ready
-    const context = buildMockContext(appointmentId);
+    const built = await buildPatientContext(appointmentId);
+    if (!built) return res.status(404).json({ message: 'Appointment not found' });
 
     const result = await aiService.generatePreSummary({
-      patientId: context.patientId || 1,
-      appointmentId: Number(appointmentId),
-      context,
+      patientId: built.patientId,
+      appointmentId,
+      context: built.context,
     });
 
     res.json({ success: true, summary: result.summary, cached: result.cached });
