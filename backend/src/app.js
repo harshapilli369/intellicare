@@ -5,6 +5,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 
+const { connectMySQL } = require('./config/mysql');
 const { connectMongoDB } = require('./config/mongodb');
 const aiRoutes = require('./routes/aiRoutes');
 const errorHandler = require('./middleware/errorHandler');
@@ -27,7 +28,13 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 5000;
 
 async function start() {
-  await connectMongoDB();
+  try {
+    await connectMySQL();
+    await connectMongoDB();
+  } catch (err) {
+    console.error(`Database connection failed: ${err.message}`);
+    process.exit(1);
+  }
   app.listen(PORT, () => console.log(`IntelliCare API running on port ${PORT}`));
 }
 
