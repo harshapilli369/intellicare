@@ -1,5 +1,6 @@
 const aiService = require('../services/aiService');
 const { buildPatientContext } = require('../services/clinicalContext');
+const ClinicalNote = require('../models/mongodb/ClinicalNote');
 
 // TODO: replaced for post-appointment in #20.
 const buildMockContext = (appointmentId) => ({
@@ -34,18 +35,23 @@ const generatePreSummary = async (req, res, next) => {
 
 const generatePostSummary = async (req, res, next) => {
   try {
-    const { appointmentId } = req.params;
+    const appointmentId = Number(req.params.appointmentId);
 
-    // TODO: replace mock with real data once notes/appointment modules are ready
-    const context = {
-      ...buildMockContext(appointmentId),
-      clinicianNotes: req.body.clinicianNotes || 'Patient presented with headache and dizziness. BP 150/95. Adjusted Lisinopril dosage.',
-    };
+    const built = await buildPatientContext(appointmentId);
+    if (!built) return res.status(404).json({ message: 'Appointment not found' });
+
+    // The encounter notes drive the post-appointment summary: those submitted
+    // with the request, or the notes already saved against this appointment.
+    let clinicianNotes = req.body.clinicianNotes;
+    if (!clinicianNotes) {
+      const notes = await ClinicalNote.find({ appointmentId }).sort({ createdAt: 1 });
+      clinicianNotes = notes.map((note) => note.body).join('\n');
+    }
 
     const result = await aiService.generatePostSummary({
-      patientId: context.patientId || 1,
-      appointmentId: Number(appointmentId),
-      context,
+      patientId: built.patientId,
+      appointmentId,
+      context: { ...built.context, clinicianNotes },
     });
 
     res.json({
