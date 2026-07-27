@@ -6,6 +6,7 @@ import AppLayout from './components/layout/AppLayout';
 
 import Login from './pages/auth/Login';
 import ClinicianDashboard from './pages/clinician/Dashboard';
+import AISummaries from './pages/clinician/AISummaries';
 import AdminDashboard from './pages/admin/Dashboard';
 import PatientDashboard from './pages/patient/Dashboard';
 
@@ -28,6 +29,7 @@ const App = () => (
   <Routes>
     <Route path="/login" element={<Login />} />
     <Route path="/clinician" element={rolePage(['clinician'], <ClinicianDashboard />)} />
+    <Route path="/clinician/ai-summaries" element={rolePage(['clinician'], <AISummaries />)} />
     <Route path="/admin" element={rolePage(['admin'], <AdminDashboard />)} />
     <Route path="/patient" element={rolePage(['patient'], <PatientDashboard />)} />
     <Route path="/" element={<Home />} />

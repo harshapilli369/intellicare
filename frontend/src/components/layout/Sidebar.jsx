@@ -4,7 +4,10 @@ import { useAuth } from '../../context/AuthContext';
 // Navigation shown per role. Feature links are added as those screens are built;
 // for now each role has its dashboard so the shell is navigable.
 const LINKS = {
-  clinician: [{ to: '/clinician', label: 'Dashboard' }],
+  clinician: [
+    { to: '/clinician', label: 'Dashboard', end: true },
+    { to: '/clinician/ai-summaries', label: 'AI Summaries' },
+  ],
   admin: [{ to: '/admin', label: 'Dashboard' }],
   patient: [{ to: '/patient', label: 'Dashboard' }],
 };
@@ -32,6 +35,7 @@ const Sidebar = () => {
           <NavLink
             key={link.to}
             to={link.to}
+            end={link.end}
             className={({ isActive }) =>
               `px-6 py-2.5 text-sm transition ${
                 isActive ? 'bg-brand-50 font-semibold text-brand' : 'text-slate-800 hover:bg-slate-50'
