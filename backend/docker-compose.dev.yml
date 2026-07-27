@@ -1,0 +1,34 @@
+# Local MySQL for development. Production uses MySQL on Railway; this gives every
+# developer the same local database without installing MySQL directly.
+#
+#   docker compose -f docker-compose.dev.yml up -d
+#
+# Then point backend/.env at it:
+#   MYSQL_HOST=localhost
+#   MYSQL_PORT=3306
+#   MYSQL_USER=intellicare
+#   MYSQL_PASSWORD=intellicare
+#   MYSQL_DATABASE=intellicare
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: intellicare-mysql-dev
+    restart: unless-stopped
+    ports:
+      - '3306:3306'
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: intellicare
+      MYSQL_USER: intellicare
+      MYSQL_PASSWORD: intellicare
+    volumes:
+      - intellicare-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-uroot', '-proot']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  intellicare-mysql-data:
