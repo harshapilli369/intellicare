@@ -1,0 +1,27 @@
+[
+    {
+        "name": "IWK Health",
+        "logo": "https://iwkhealth.ca/themes/custom/iwk/assets/images/logo-footer.png",
+        "website": "https://iwkhealth.ca/"
+    },
+    {
+        "name": "Medavie Blue Cross",
+        "logo": "https://www.medavie.ca/images/transforms/_1200x630_crop_center-center_82_none/logo_1000x500.png?mtime=1756825798",
+        "website": "https://www.medaviebc.ca/en/"
+    },
+    {
+        "name": "Nova Scotia Health",
+        "logo": "https://i.cbc.ca/ais/1.5941197,1681400816000/full/max/0/default.jpg?im=Crop%2Crect%3D%280%2C17%2C1378%2C775%29%3BResize%3D620",
+        "website": "https://www.nshealth.ca/"
+    },
+    {
+        "name": "ParaMed Home Health Care",
+        "logo": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQYS6XZCzpYORfFeF9G20dnGlQ02egjnSHb17BU-DhnZBv8Iy-rL03Y8Tt6&s=10",
+        "website": "https://www.paramed.com/"
+    },
+    {
+        "name": "NHS UK",
+        "logo": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRWitVLXkHyQabdFWAbfR47tq9GmWHmPz4gDfXF0F2ppIIkaRc7n-rV4w4&s=10",
+        "website": "https://www.nhs.uk/"
+    }
+]
