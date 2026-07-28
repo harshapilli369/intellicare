@@ -4,6 +4,12 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        brand: {
+          DEFAULT: '#0b63f6',
+          dark: '#0a51cc',
+          50: '#dce9ff',
+        },
+        canvas: '#efefef',
         primary: {
           50: '#eff6ff',
           100: '#dbeafe',
