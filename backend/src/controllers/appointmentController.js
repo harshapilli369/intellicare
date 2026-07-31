@@ -9,6 +9,7 @@ const {
   endOfDay,
   slotsForDate,
   isWorkingTime,
+  lockClinicianDiary,
   findClash,
   isWithinChangeWindow,
   changeWindowHours,
@@ -142,8 +143,10 @@ const book = async (req, res, next) => {
       return res.status(400).json({ message: "That time is not one of the clinic's slots" });
     }
 
-    // Read and hold the slot inside the transaction, so the check and the
-    // insert cannot be separated by another booking.
+    // Everything writing into this clinician's diary queues here, so the check
+    // below and the insert that follows cannot be separated by another booking.
+    await lockClinicianDiary(clinicianId, transaction);
+
     if (await findClash(clinicianId, when, { transaction })) {
       await transaction.rollback();
       return res.status(409).json({ message: 'That slot is already booked' });
@@ -197,6 +200,10 @@ const reschedule = async (req, res, next) => {
       await transaction.rollback();
       return res.status(400).json({ message: "That time is not one of the clinic's slots" });
     }
+    // Same serialization as booking: moving into a slot competes with anyone
+    // booking it.
+    await lockClinicianDiary(appointment.clinicianId, transaction);
+
     if (await findClash(appointment.clinicianId, when, { exclude: appointment.id, transaction })) {
       await transaction.rollback();
       return res.status(409).json({ message: 'That slot is already booked' });
