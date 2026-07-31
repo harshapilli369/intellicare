@@ -22,4 +22,12 @@ const requireOwnPatient =
     }
   };
 
-module.exports = { requireOwnPatient };
+// The Patient profile behind the signed-in user, or null when the user is
+// staff. Lets a controller tell "acting on my own record" from "acting on
+// someone's record" where the patient is not named in the route.
+const patientProfileFor = async (user) => {
+  if (user.role !== 'patient') return null;
+  return Patient.findOne({ where: { userId: user.id } });
+};
+
+module.exports = { requireOwnPatient, patientProfileFor };
