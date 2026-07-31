@@ -111,37 +111,35 @@ const availability = async (req, res, next) => {
 };
 
 const book = async (req, res, next) => {
-  const transaction = await sequelize.transaction();
+  let transaction;
   try {
     const { clinicianId, scheduledAt, reason } = req.body;
 
-    // A patient books for themselves whatever the body says; staff book on
-    // anyone's behalf and must name the patient.
+    // Everything that only needs checking is checked before a transaction is
+    // opened. A transaction holds a pool connection for as long as it lives, so
+    // reads made inside one that ask for a second connection can exhaust the
+    // pool when several bookings arrive together, and then nothing can finish.
     const profile = await patientProfileFor(req.user);
     const patientId = profile ? profile.id : req.body.patientId;
 
-    if (!patientId) {
-      await transaction.rollback();
-      return res.status(400).json({ message: 'patientId is required' });
-    }
-    if (!(await Patient.findByPk(patientId, { transaction }))) {
-      await transaction.rollback();
+    if (!patientId) return res.status(400).json({ message: 'patientId is required' });
+    if (!(await Patient.findByPk(patientId))) {
       return res.status(404).json({ message: 'Patient not found' });
     }
     if (!(await findClinician(clinicianId))) {
-      await transaction.rollback();
       return res.status(404).json({ message: 'Clinician not found' });
     }
 
     const when = new Date(scheduledAt);
     if (when.getTime() <= Date.now()) {
-      await transaction.rollback();
       return res.status(400).json({ message: 'Appointments are booked in the future' });
     }
     if (!isWorkingTime(when)) {
-      await transaction.rollback();
       return res.status(400).json({ message: "That time is not one of the clinic's slots" });
     }
+
+    // From here the work has to be atomic, and it is only three statements long.
+    transaction = await sequelize.transaction();
 
     // Everything writing into this clinician's diary queues here, so the check
     // below and the insert that follows cannot be separated by another booking.
@@ -161,31 +159,27 @@ const book = async (req, res, next) => {
     const appointment = await Appointment.findByPk(created.id, { include: WITH_NAMES });
     res.status(201).json({ success: true, appointment: shape(appointment) });
   } catch (err) {
-    if (!transaction.finished) await transaction.rollback();
+    if (transaction && !transaction.finished) await transaction.rollback();
     next(err);
   }
 };
 
 const reschedule = async (req, res, next) => {
-  const transaction = await sequelize.transaction();
+  let transaction;
   try {
-    const appointment = await Appointment.findByPk(req.params.id, { transaction });
-    if (!appointment) {
-      await transaction.rollback();
-      return res.status(404).json({ message: 'Appointment not found' });
-    }
+    // As with booking, the checks happen before a transaction is opened so that
+    // none of them competes for a second pool connection while one is held.
+    const appointment = await Appointment.findByPk(req.params.id);
+    if (!appointment) return res.status(404).json({ message: 'Appointment not found' });
 
     const profile = await patientProfileFor(req.user);
     if (!mayAct(req.user, appointment, profile)) {
-      await transaction.rollback();
       return res.status(403).json({ message: 'Forbidden' });
     }
     if (appointment.status !== 'scheduled') {
-      await transaction.rollback();
       return res.status(409).json({ message: `A ${appointment.status} appointment cannot be moved` });
     }
     if (isWithinChangeWindow(appointment.scheduledAt)) {
-      await transaction.rollback();
       return res.status(409).json({
         message: `Appointments cannot be changed within ${changeWindowHours()} hours of the visit`,
       });
@@ -193,13 +187,14 @@ const reschedule = async (req, res, next) => {
 
     const when = new Date(req.body.scheduledAt);
     if (when.getTime() <= Date.now()) {
-      await transaction.rollback();
       return res.status(400).json({ message: 'Appointments are booked in the future' });
     }
     if (!isWorkingTime(when)) {
-      await transaction.rollback();
       return res.status(400).json({ message: "That time is not one of the clinic's slots" });
     }
+
+    transaction = await sequelize.transaction();
+
     // Same serialization as booking: moving into a slot competes with anyone
     // booking it.
     await lockClinicianDiary(appointment.clinicianId, transaction);
@@ -216,7 +211,7 @@ const reschedule = async (req, res, next) => {
     const saved = await Appointment.findByPk(appointment.id, { include: WITH_NAMES });
     res.json({ success: true, appointment: shape(saved) });
   } catch (err) {
-    if (!transaction.finished) await transaction.rollback();
+    if (transaction && !transaction.finished) await transaction.rollback();
     next(err);
   }
 };

@@ -63,8 +63,13 @@ const lockClinicianDiary = (clinicianId, transaction) =>
 
 // The appointment already holding this clinician's slot, if there is one.
 // `exclude` skips the appointment being moved, so it does not clash with itself.
-// Callers that are about to write must hold the diary lock first; this read
-// takes no lock of its own.
+//
+// Inside a transaction this reads with a lock, and deliberately so. A plain read
+// under REPEATABLE READ answers from the snapshot taken when the transaction
+// began, which would report the slot free even after another booking had
+// committed into it. A locking read sees the latest committed row instead.
+// Callers hold the diary lock first, so only one of these runs at a time and it
+// never contends with another.
 const findClash = async (clinicianId, when, { exclude, transaction } = {}) => {
   const where = {
     clinicianId,
@@ -73,7 +78,11 @@ const findClash = async (clinicianId, when, { exclude, transaction } = {}) => {
   };
   if (exclude) where.id = { [Op.ne]: exclude };
 
-  return Appointment.findOne({ where, transaction });
+  return Appointment.findOne({
+    where,
+    transaction,
+    lock: transaction ? transaction.LOCK.UPDATE : undefined,
+  });
 };
 
 // Whether an appointment is still far enough away to be changed.
