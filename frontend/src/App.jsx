@@ -12,6 +12,7 @@ import ClinicianSchedule from './pages/clinician/Schedule';
 import AISummaries from './pages/clinician/AISummaries';
 import AdminDashboard from './pages/admin/Dashboard';
 import AdminAppointments from './pages/admin/Appointments';
+import AddPatient from './pages/admin/AddPatient';
 import PatientDashboard from './pages/patient/Dashboard';
 import PatientSummaries from './pages/patient/Summaries';
 import PatientAppointments from './pages/patient/Appointments';
@@ -47,6 +48,7 @@ const App = () => (
     <Route path="/clinician/ai-summaries" element={rolePage(['clinician'], <AISummaries />)} />
     <Route path="/admin" element={rolePage(['admin'], <AdminDashboard />)} />
     <Route path="/admin/appointments" element={rolePage(['admin'], <AdminAppointments />)} />
+    <Route path="/admin/patients/new" element={rolePage(['admin'], <AddPatient />)} />
     <Route path="/admin/patients" element={rolePage(['admin'], <PatientsList />)} />
     <Route path="/admin/patients/:id" element={rolePage(['admin'], <PatientDetail />)} />
     <Route path="/patient" element={rolePage(['patient'], <PatientDashboard />)} />

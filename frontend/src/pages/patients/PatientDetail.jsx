@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 
 import AppointmentNotes from '../../components/notes/AppointmentNotes';
 import PrescribeDialog from '../../components/prescriptions/PrescribeDialog';
+import EditPatientDialog from '../../components/patients/EditPatientDialog';
 import PatientInfoCard from '../../components/patients/PatientInfoCard';
 import PreviousAppointments from '../../components/patients/PreviousAppointments';
 import { useAuth } from '../../context/AuthContext';
@@ -36,6 +37,7 @@ const PatientDetail = () => {
   // The appointment whose notes are open, if any.
   const [notesFor, setNotesFor] = useState(null);
   const [prescribing, setPrescribing] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   const isClinician = user?.role === 'clinician';
   const base = user?.role === 'admin' ? '/admin' : '/clinician';
@@ -78,9 +80,17 @@ const PatientDetail = () => {
 
   return (
     <div>
-      <Link to={`${base}/patients`} className="text-sm text-brand hover:underline">
-        &larr; Back to patients
-      </Link>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Link to={`${base}/patients`} className="text-sm text-brand hover:underline">
+          &larr; Back to patients
+        </Link>
+        {/* Correcting demographics is the administrative assistant's job. */}
+        {user?.role === 'admin' && (
+          <button type="button" onClick={() => setEditing(true)} className="btn-outline">
+            Edit details
+          </button>
+        )}
+      </div>
 
       <div className="mt-4 grid gap-8 lg:grid-cols-2">
         <div>
@@ -176,6 +186,14 @@ const PatientDetail = () => {
           appointment={notesFor}
           patientName={patient.name}
           onClose={() => setNotesFor(null)}
+        />
+      )}
+
+      {editing && (
+        <EditPatientDialog
+          patient={patient}
+          onClose={() => setEditing(false)}
+          onSaved={() => getPatient(id).then(setPatient)}
         />
       )}
 

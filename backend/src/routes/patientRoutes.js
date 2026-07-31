@@ -16,6 +16,7 @@ const demographics = [
   body('dateOfBirth').optional().isISO8601(),
   body('sex').optional().isIn(['Male', 'Female', 'Other']),
   body('address').optional().isString().trim(),
+  body('healthCardNumber').optional().isString().trim().isLength({ max: 40 }),
   body('medicalHistory').optional().isArray(),
   body('allergies').optional().isArray(),
 ];

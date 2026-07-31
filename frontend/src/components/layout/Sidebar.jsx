@@ -14,6 +14,7 @@ const LINKS = {
     { to: '/admin', label: 'Dashboard', end: true },
     { to: '/admin/patients', label: 'Patients' },
     { to: '/admin/appointments', label: 'Appointments' },
+    { to: '/admin/patients/new', label: 'Add Patient' },
   ],
   patient: [
     { to: '/patient', label: 'Dashboard', end: true },

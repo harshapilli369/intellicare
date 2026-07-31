@@ -164,6 +164,34 @@ describe('Patients', () => {
       await del(`/patients/${created.json.patient.id}`, admin.token);
     });
 
+    it('records a health card number and returns it', async () => {
+      const account = newPatient();
+      const created = await post('/patients', admin.token, {
+        ...account,
+        healthCardNumber: '1234 567 890 AB',
+      });
+
+      assert.equal(created.json.patient.healthCardNumber, '1234 567 890 AB');
+
+      const read = await get(`/patients/${created.json.patient.id}`, admin.token);
+      assert.equal(read.json.patient.healthCardNumber, '1234 567 890 AB', 'and it persists');
+
+      await del(`/patients/${created.json.patient.id}`, admin.token);
+    });
+
+    it('names the fields it rejected, so a form can mark them', async () => {
+      const { status, json } = await post('/patients', admin.token, {
+        ...newPatient(),
+        email: 'not-an-email',
+        password: 'short',
+      });
+
+      assert.equal(status, 400);
+      assert.ok(Array.isArray(json.fields), 'the response says which fields failed');
+      assert.ok(json.fields.includes('email'));
+      assert.ok(json.fields.includes('password'));
+    });
+
     it('validates the body', async () => {
       assert.equal((await post('/patients', admin.token, { ...newPatient(), email: 'nope' })).status, 400);
       assert.equal((await post('/patients', admin.token, { ...newPatient(), password: 'abc' })).status, 400);
@@ -185,6 +213,18 @@ describe('Patients', () => {
       assert.equal(json.patient.address, '2 Changed Ave.', 'address lives on the profile');
       assert.equal(json.patient.allergies.length, 2);
       assert.equal(json.patient.sex, 'Other', 'a field that was not sent is left alone');
+
+      await del(`/patients/${id}`, admin.token);
+    });
+
+    it('updates the health card number too', async () => {
+      const created = await post('/patients', admin.token, newPatient());
+      const id = created.json.patient.id;
+
+      const { json } = await put(`/patients/${id}`, admin.token, {
+        healthCardNumber: '9999 888 777 ZZ',
+      });
+      assert.equal(json.patient.healthCardNumber, '9999 888 777 ZZ');
 
       await del(`/patients/${id}`, admin.token);
     });

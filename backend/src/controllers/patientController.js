@@ -20,6 +20,7 @@ const shape = (patient) => ({
   dateOfBirth: patient.dateOfBirth,
   sex: patient.sex,
   address: patient.address,
+  healthCardNumber: patient.healthCardNumber,
   medicalHistory: patient.medicalHistory || [],
   allergies: patient.allergies || [],
 });
@@ -132,7 +133,7 @@ const create = async (req, res, next) => {
   const transaction = await sequelize.transaction();
   try {
     const { email, password, name, phone } = req.body;
-    const { dateOfBirth, sex, address, medicalHistory, allergies } = req.body;
+    const { dateOfBirth, sex, address, healthCardNumber, medicalHistory, allergies } = req.body;
 
     const existing = await User.findOne({ where: { email }, transaction });
     if (existing) {
@@ -159,6 +160,7 @@ const create = async (req, res, next) => {
         dateOfBirth,
         sex,
         address,
+        healthCardNumber,
         medicalHistory: medicalHistory || [],
         allergies: allergies || [],
       },
@@ -185,11 +187,11 @@ const update = async (req, res, next) => {
     }
 
     const { name, phone } = req.body;
-    const { dateOfBirth, sex, address, medicalHistory, allergies } = req.body;
+    const { dateOfBirth, sex, address, healthCardNumber, medicalHistory, allergies } = req.body;
 
     // Demographics straddle both tables, so the edit runs in one transaction
     // and cannot half-apply. Only the fields actually sent are touched.
-    const profile = { dateOfBirth, sex, address, medicalHistory, allergies };
+    const profile = { dateOfBirth, sex, address, healthCardNumber, medicalHistory, allergies };
     Object.entries(profile).forEach(([field, value]) => {
       if (value !== undefined) patient[field] = value;
     });

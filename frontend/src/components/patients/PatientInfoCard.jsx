@@ -39,6 +39,7 @@ const PatientInfoCard = ({ patient, lastAppointment }) => (
           <Line label="Age" value={ageFrom(patient.dateOfBirth)} />
           <Line label="Address" value={patient.address} />
           <Line label="Phone" value={patient.phone} />
+          <Line label="Health card" value={patient.healthCardNumber} />
         </div>
       </div>
 
