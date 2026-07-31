@@ -34,6 +34,9 @@ router.get(
   appointmentController.availability
 );
 
+// Declared after /availability so that path is not swallowed by :id.
+router.get('/:id', appointmentId, validate, appointmentController.getById);
+
 // Patients book for themselves, admins book on their behalf, and a clinician
 // can put a visit in their own book.
 router.post(

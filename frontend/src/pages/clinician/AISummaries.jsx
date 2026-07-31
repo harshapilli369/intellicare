@@ -3,13 +3,28 @@ import { useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
 import AiBadge from '../../components/ai/AiBadge';
+import { useAuth } from '../../context/AuthContext';
 import { getSummary, generatePre, generatePost, finalizeSummary } from '../../services/aiApi';
+import { getAppointment, listAppointments } from '../../services/appointmentApi';
+
+const describe = (appointment) => {
+  const when = new Date(appointment.scheduledAt).toLocaleString('en-CA', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+  return `${appointment.patientName} — ${appointment.reason || 'Appointment'} — ${when}`;
+};
 
 const AISummaries = () => {
   const [searchParams] = useSearchParams();
   const presetId = searchParams.get('appointment') || '';
+  const { user } = useAuth();
 
   const [appointmentId, setAppointmentId] = useState(presetId);
+  const [appointment, setAppointment] = useState(null);
+  const [choices, setChoices] = useState([]);
   const [summary, setSummary] = useState(null);
   const [notes, setNotes] = useState('');
   const [clinicianDraft, setClinicianDraft] = useState('');
@@ -43,13 +58,53 @@ const AISummaries = () => {
     [appointmentId]
   );
 
-  // Arriving from a patient record carries the appointment in the URL, so that
-  // visit's summary opens without the clinician retyping its id.
+  // The clinician's own visits, so a summary can be chosen by patient and time
+  // rather than by an id nobody knows.
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    let cancelled = false;
+
+    listAppointments({ clinicianId: user.id })
+      .then((res) => {
+        if (!cancelled) setChoices([...res].reverse());
+      })
+      .catch(() => {
+        if (!cancelled) toast.error('Could not load your appointments');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  // Whichever visit is selected, its details are resolved so the screen can say
+  // whose summary is on it. Arriving from a patient record or the schedule
+  // carries the appointment in the URL and selects it here.
+  useEffect(() => {
+    if (!appointmentId) {
+      setAppointment(null);
+      return undefined;
+    }
+    let cancelled = false;
+
+    getAppointment(appointmentId)
+      .then((res) => {
+        if (!cancelled) setAppointment(res);
+      })
+      .catch(() => {
+        if (!cancelled) setAppointment(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [appointmentId]);
+
   useEffect(() => {
     if (!presetId) return;
     setAppointmentId(presetId);
     load(presetId);
-    // Only re-runs when the record hands over a different appointment.
+    // Only re-runs when another screen hands over a different appointment.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [presetId]);
 
@@ -105,24 +160,47 @@ const AISummaries = () => {
         and edit it before finalizing.
       </p>
 
-      <div className="card-plain mt-6 flex items-end gap-3 rounded-2xl bg-white p-5">
-        <label className="flex-1">
-          <span className="text-sm font-medium text-slate-700">Appointment ID</span>
-          <input
-            type="number"
+      <div className="card-plain mt-6 rounded-2xl bg-white p-5">
+        <label className="block">
+          <span className="text-sm font-medium text-slate-700">Appointment</span>
+          <select
             value={appointmentId}
-            onChange={(event) => setAppointmentId(event.target.value)}
-            placeholder="e.g. 12"
+            onChange={(event) => {
+              setAppointmentId(event.target.value);
+              setSummary(null);
+              if (event.target.value) load(event.target.value);
+            }}
+            disabled={busy === 'load'}
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand"
-          />
+          >
+            <option value="">Choose a visit...</option>
+            {choices.map((choice) => (
+              <option key={choice.id} value={choice.id}>
+                {describe(choice)}
+              </option>
+            ))}
+          </select>
         </label>
-        <button type="button" onClick={() => load()} disabled={!appointmentId || busy} className="btn-primary">
-          {busy === 'load' ? 'Loading...' : 'Load'}
-        </button>
       </div>
 
       {appointmentId && (
         <>
+          {appointment && (
+            <div className="mt-6">
+              <h2 className="text-xl font-bold text-slate-900">{appointment.patientName}</h2>
+              <p className="mt-0.5 text-sm text-slate-600">
+                {appointment.reason || 'Appointment'} —{' '}
+                {new Date(appointment.scheduledAt).toLocaleString('en-CA', {
+                  weekday: 'long',
+                  month: 'long',
+                  day: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                })}
+              </p>
+            </div>
+          )}
+
           {summary?.finalized && (
             <div className="mt-4 rounded-lg bg-green-50 px-4 py-2 text-sm text-green-800">
               This summary is finalized. The patient-friendly version is visible to the patient.

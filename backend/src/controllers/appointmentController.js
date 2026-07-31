@@ -110,6 +110,24 @@ const availability = async (req, res, next) => {
   }
 };
 
+// One appointment, for a screen that was linked straight to it and needs to say
+// whose visit it is. Staff read any; a patient reads only their own.
+const getById = async (req, res, next) => {
+  try {
+    const appointment = await Appointment.findByPk(req.params.id, { include: WITH_NAMES });
+    if (!appointment) return res.status(404).json({ message: 'Appointment not found' });
+
+    const profile = await patientProfileFor(req.user);
+    if (!mayAct(req.user, appointment, profile)) {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+
+    res.json({ success: true, appointment: shape(appointment) });
+  } catch (err) {
+    next(err);
+  }
+};
+
 const book = async (req, res, next) => {
   let transaction;
   try {
@@ -263,4 +281,4 @@ const setStatus = async (req, res, next) => {
   }
 };
 
-module.exports = { list, availability, book, reschedule, cancel, setStatus };
+module.exports = { list, availability, getById, book, reschedule, cancel, setStatus };
