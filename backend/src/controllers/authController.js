@@ -15,7 +15,35 @@ const publicUser = (user) => ({
   phone: user.phone,
 });
 
+// Public sign-up. The account created is always a patient: this endpoint takes
+// no credentials, so a role coming from the request body would let any caller
+// hand themselves a clinician or administrator account. Staff are created
+// through createStaff below.
 const register = async (req, res, next) => {
+  try {
+    const { email, password, name, phone } = req.body;
+
+    const existing = await User.findOne({ where: { email } });
+    if (existing) return res.status(409).json({ message: 'Email already registered' });
+
+    const user = await User.create({
+      email,
+      passwordHash: await bcrypt.hash(password, 10),
+      name,
+      phone,
+      role: 'patient',
+    });
+
+    res.status(201).json({ success: true, token: signToken(user), user: publicUser(user) });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Creates a clinician or administrator. Restricted to administrators at the
+// route, so choosing a role here is a decision an existing administrator has
+// already been authorised to make.
+const createStaff = async (req, res, next) => {
   try {
     const { email, password, name, phone, role } = req.body;
 
@@ -27,10 +55,10 @@ const register = async (req, res, next) => {
       passwordHash: await bcrypt.hash(password, 10),
       name,
       phone,
-      role: role || 'patient',
+      role,
     });
 
-    res.status(201).json({ success: true, token: signToken(user), user: publicUser(user) });
+    res.status(201).json({ success: true, user: publicUser(user) });
   } catch (err) {
     next(err);
   }
@@ -66,4 +94,4 @@ const me = async (req, res, next) => {
   }
 };
 
-module.exports = { register, login, me };
+module.exports = { register, createStaff, login, me };
