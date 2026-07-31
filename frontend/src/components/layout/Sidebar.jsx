@@ -6,9 +6,13 @@ import { useAuth } from '../../context/AuthContext';
 const LINKS = {
   clinician: [
     { to: '/clinician', label: 'Dashboard', end: true },
+    { to: '/clinician/patients', label: 'Patients' },
     { to: '/clinician/ai-summaries', label: 'AI Summaries' },
   ],
-  admin: [{ to: '/admin', label: 'Dashboard' }],
+  admin: [
+    { to: '/admin', label: 'Dashboard', end: true },
+    { to: '/admin/patients', label: 'Patients' },
+  ],
   patient: [{ to: '/patient', label: 'Dashboard' }],
 };
 

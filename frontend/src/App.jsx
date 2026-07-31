@@ -9,6 +9,8 @@ import ClinicianDashboard from './pages/clinician/Dashboard';
 import AISummaries from './pages/clinician/AISummaries';
 import AdminDashboard from './pages/admin/Dashboard';
 import PatientDashboard from './pages/patient/Dashboard';
+import PatientsList from './pages/patients/PatientsList';
+import PatientDetail from './pages/patients/PatientDetail';
 
 // Wraps a page for one role: requires sign-in, checks the role, and renders it
 // inside the shared shell.
@@ -29,8 +31,12 @@ const App = () => (
   <Routes>
     <Route path="/login" element={<Login />} />
     <Route path="/clinician" element={rolePage(['clinician'], <ClinicianDashboard />)} />
+    <Route path="/clinician/patients" element={rolePage(['clinician'], <PatientsList />)} />
+    <Route path="/clinician/patients/:id" element={rolePage(['clinician'], <PatientDetail />)} />
     <Route path="/clinician/ai-summaries" element={rolePage(['clinician'], <AISummaries />)} />
     <Route path="/admin" element={rolePage(['admin'], <AdminDashboard />)} />
+    <Route path="/admin/patients" element={rolePage(['admin'], <PatientsList />)} />
+    <Route path="/admin/patients/:id" element={rolePage(['admin'], <PatientDetail />)} />
     <Route path="/patient" element={rolePage(['patient'], <PatientDashboard />)} />
     <Route path="/" element={<Home />} />
     <Route path="*" element={<Home />} />
