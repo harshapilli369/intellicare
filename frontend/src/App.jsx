@@ -18,6 +18,7 @@ import PatientAppointments from './pages/patient/Appointments';
 import BookAppointment from './pages/patient/BookAppointment';
 import PatientsList from './pages/patients/PatientsList';
 import PatientDetail from './pages/patients/PatientDetail';
+import PrintPrescription from './pages/prescriptions/PrintPrescription';
 
 // Wraps a page for one role: requires sign-in, checks the role, and renders it
 // inside the shared shell.
@@ -52,6 +53,15 @@ const App = () => (
     <Route path="/patient/appointments" element={rolePage(['patient'], <PatientAppointments />)} />
     <Route path="/patient/book" element={rolePage(['patient'], <BookAppointment />)} />
     <Route path="/patient/summaries" element={rolePage(['patient'], <PatientSummaries />)} />
+    {/* Outside the shell: a printed sheet should carry no navigation. */}
+    <Route
+      path="/prescriptions/:id/print"
+      element={
+        <ProtectedRoute roles={['clinician', 'admin', 'patient']}>
+          <PrintPrescription />
+        </ProtectedRoute>
+      }
+    />
     <Route path="/" element={<Home />} />
     <Route path="*" element={<Home />} />
   </Routes>
