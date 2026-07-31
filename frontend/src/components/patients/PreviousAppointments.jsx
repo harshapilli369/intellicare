@@ -10,7 +10,13 @@ const formatDate = (value) =>
 // The visit history panel beside the patient record. Each visit offers its
 // notes and its post-appointment summary; the notes side stays disabled until
 // the clinical notes API exists.
-const PreviousAppointments = ({ appointments, onViewSummary, canViewSummary }) => (
+const PreviousAppointments = ({
+  appointments,
+  onViewSummary,
+  onViewNotes,
+  canViewSummary,
+  canViewNotes,
+}) => (
   <section className="card h-full">
     <h2 className="inline-block border-b-2 border-brand pb-1 text-xl font-bold tracking-wide">
       PREVIOUS APPOINTMENTS
@@ -33,8 +39,9 @@ const PreviousAppointments = ({ appointments, onViewSummary, canViewSummary }) =
               <div className="flex shrink-0 gap-3">
                 <button
                   type="button"
-                  disabled
-                  title="Appointment notes arrive with the clinical notes API"
+                  onClick={() => onViewNotes(appointment)}
+                  disabled={!canViewNotes}
+                  title={canViewNotes ? undefined : 'Notes are kept by the treating clinician'}
                   className="btn-chip w-[9.5rem]"
                 >
                   View Appointment Notes

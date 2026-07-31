@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
+import AppointmentNotes from '../../components/notes/AppointmentNotes';
 import PatientInfoCard from '../../components/patients/PatientInfoCard';
 import PreviousAppointments from '../../components/patients/PreviousAppointments';
 import { useAuth } from '../../context/AuthContext';
@@ -31,6 +32,8 @@ const PatientDetail = () => {
 
   const [patient, setPatient] = useState(null);
   const [loading, setLoading] = useState(true);
+  // The appointment whose notes are open, if any.
+  const [notesFor, setNotesFor] = useState(null);
 
   const isClinician = user?.role === 'clinician';
   const base = user?.role === 'admin' ? '/admin' : '/clinician';
@@ -106,10 +109,12 @@ const PatientDetail = () => {
               >
                 Generate Pre-Appointment Notes
               </button>
+              {/* Notes attach to a visit, so this opens the most recent one. */}
               <button
                 type="button"
-                disabled
-                title="Note taking arrives with the clinical notes API"
+                onClick={() => setNotesFor(lastAppointment)}
+                disabled={!lastAppointment}
+                title={lastAppointment ? undefined : 'This patient has no appointment yet'}
                 className="btn-block-outline"
               >
                 + Add New Appointment Notes
@@ -121,9 +126,19 @@ const PatientDetail = () => {
         <PreviousAppointments
           appointments={appointments}
           onViewSummary={openSummary}
+          onViewNotes={setNotesFor}
           canViewSummary={isClinician}
+          canViewNotes={isClinician}
         />
       </div>
+
+      {notesFor && (
+        <AppointmentNotes
+          appointment={notesFor}
+          patientName={patient.name}
+          onClose={() => setNotesFor(null)}
+        />
+      )}
     </div>
   );
 };
