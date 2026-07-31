@@ -3,6 +3,7 @@ const { Op } = require('sequelize');
 const { Appointment, Patient, Prescription, User } = require('../models/mysql');
 const AISummary = require('../models/mongodb/AISummary');
 const { patientProfileFor } = require('../middleware/ownership');
+const { runsOutOn } = require('../services/prescriptions');
 
 const WITH_NAMES = [
   { model: Patient, include: { model: User, attributes: ['name'] } },
@@ -101,22 +102,8 @@ const clinicianDashboard = async (req, res, next) => {
   }
 };
 
-// A course of medication runs for a written duration such as "30 days", so when
-// it runs out is the day it was issued plus that many days. Anything the
-// duration cannot be read from is left out rather than guessed at.
+// How close to running out a course has to be before it is worth flagging.
 const RUNS_OUT_WITHIN_DAYS = 14;
-
-const runsOutOn = (prescription) => {
-  const match = /(\d+)\s*(day|week|month)/i.exec(prescription.duration || '');
-  if (!match) return null;
-
-  const amount = Number(match[1]);
-  const perUnit = { day: 1, week: 7, month: 30 }[match[2].toLowerCase()];
-
-  const issued = new Date(prescription.createdAt);
-  issued.setDate(issued.getDate() + amount * perUnit);
-  return issued;
-};
 
 const patientDashboard = async (req, res, next) => {
   try {
