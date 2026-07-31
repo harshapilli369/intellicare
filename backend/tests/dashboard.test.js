@@ -73,6 +73,48 @@ describe('Clinician dashboard', () => {
     assert.equal((await get('/dashboard/clinician?month=nonsense', clinician.token)).status, 400);
   });
 
+  describe('the patient side', () => {
+    let mine;
+
+    before(async () => {
+      mine = (await get('/dashboard/patient', patient.token)).json;
+    });
+
+    it('is patient only', async () => {
+      assert.equal((await get('/dashboard/patient', clinician.token)).status, 403);
+      assert.equal((await get('/dashboard/patient', admin.token)).status, 403);
+      assert.equal((await get('/dashboard/patient', null)).status, 401);
+    });
+
+    it('returns the counts and the patient record id, which is not the account id', async () => {
+      assert.equal(typeof mine.counts.bookedAppointments, 'number');
+      assert.equal(typeof mine.counts.refillsDueSoon, 'number');
+      assert.equal(typeof mine.counts.summariesAvailable, 'number');
+      assert.equal(typeof mine.pastVisits, 'number');
+      assert.ok(mine.patientId > 0);
+      assert.notEqual(mine.patientId, patient.user.id, 'the profile id differs from the account id');
+    });
+
+    it('counts only appointments that belong to this patient', async () => {
+      const listed = (await get('/appointments', patient.token)).json.appointments;
+      const scheduled = listed.filter((a) => a.status === 'scheduled').length;
+      assert.equal(mine.counts.bookedAppointments, scheduled);
+    });
+
+    it('names the clinician on the upcoming appointment, which is what the card shows', () => {
+      if (!mine.upcoming) return;
+      assert.ok(mine.upcoming.clinicianName);
+      assert.ok(new Date(mine.upcoming.scheduledAt).getTime() > Date.now());
+    });
+
+    it('counts only released summaries, never drafts', async () => {
+      const released = (await get(`/ai/patient/${mine.patientId}/summaries`, patient.token)).json
+        .summaries;
+      assert.equal(mine.counts.summariesAvailable, released.length);
+      assert.ok(released.every((s) => s.finalized), 'nothing unreleased reaches the patient');
+    });
+  });
+
   it('shows only this clinician\'s day', async () => {
     const mine = await get(
       `/appointments?clinicianId=${clinician.user.id}&from=${daysFromNow(0)}&to=${daysFromNow(0)}`,
