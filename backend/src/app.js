@@ -12,6 +12,7 @@ const authRoutes = require('./routes/authRoutes');
 const patientRoutes = require('./routes/patientRoutes');
 const appointmentRoutes = require('./routes/appointmentRoutes');
 const noteRoutes = require('./routes/noteRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 const aiRoutes = require('./routes/aiRoutes');
 const errorHandler = require('./middleware/errorHandler');
 const reminderJob = require('./jobs/reminderJob');
@@ -37,6 +38,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/patients', patientRoutes);
 app.use('/api/appointments', appointmentRoutes);
 app.use('/api/notes', noteRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/ai', aiRoutes);
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
