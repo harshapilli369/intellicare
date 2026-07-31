@@ -73,6 +73,58 @@ describe('Appointments', () => {
     });
   });
 
+  describe('reading one appointment', () => {
+    it('returns it with both names, so a screen can say whose visit it is', async () => {
+      const booked = await post('/appointments', admin.token, {
+        clinicianId: clinician.user.id,
+        patientId: eliasId,
+        scheduledAt: slots[13],
+        reason: 'Read by id',
+      });
+      const id = booked.json.appointment.id;
+
+      const { status, json } = await get(`/appointments/${id}`, clinician.token);
+      assert.equal(status, 200);
+      assert.equal(json.appointment.id, id);
+      assert.equal(json.appointment.patientName, 'Elias Tobias');
+      assert.equal(json.appointment.clinicianName, 'Mariam Kuteishi');
+      assert.equal(json.appointment.reason, 'Read by id');
+
+      assert.equal(
+        (await get(`/appointments/${id}`, patient.token)).status,
+        200,
+        'the patient it belongs to can read it'
+      );
+
+      await patch(`/appointments/${id}/cancel`, admin.token);
+    });
+
+    it("refuses a patient another patient's appointment", async () => {
+      const booked = await post('/appointments', admin.token, {
+        clinicianId: clinician.user.id,
+        patientId: otherId,
+        scheduledAt: slots[14],
+      });
+      const id = booked.json.appointment.id;
+
+      assert.equal((await get(`/appointments/${id}`, patient.token)).status, 403);
+      await patch(`/appointments/${id}/cancel`, admin.token);
+    });
+
+    it('answers 404 for one that does not exist and 400 for a malformed id', async () => {
+      assert.equal((await get('/appointments/999999', clinician.token)).status, 404);
+      assert.equal((await get('/appointments/abc', clinician.token)).status, 400);
+    });
+
+    it('does not swallow the availability path', async () => {
+      const { status } = await get(
+        `/appointments/availability?clinicianId=${clinician.user.id}&date=${day}`,
+        clinician.token
+      );
+      assert.equal(status, 200, '/availability still routes to availability, not to :id');
+    });
+  });
+
   describe('booking', () => {
     it('books for the patient making the request and takes the slot out of circulation', async () => {
       const slot = slots[0];
