@@ -24,4 +24,16 @@ router.get(
 // Scoped to the signed-in patient's own record, resolved from the token.
 router.get('/patient', authorize('patient'), dashboardController.patientDashboard);
 
+// The clinic's day rather than one clinician's.
+router.get(
+  '/admin',
+  authorize('admin'),
+  query('month')
+    .optional()
+    .matches(/^\d{4}-\d{2}$/)
+    .withMessage('month must look like YYYY-MM'),
+  validate,
+  dashboardController.adminDashboard
+);
+
 module.exports = router;

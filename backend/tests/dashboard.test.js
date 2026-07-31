@@ -96,9 +96,16 @@ describe('Clinician dashboard', () => {
     });
 
     it('counts only appointments that belong to this patient', async () => {
-      const listed = (await get('/appointments', patient.token)).json.appointments;
-      const scheduled = listed.filter((a) => a.status === 'scheduled').length;
-      assert.equal(mine.counts.bookedAppointments, scheduled);
+      // Both sides are read here rather than reusing the snapshot from `before`:
+      // other test files book and cancel against the same patient in parallel,
+      // so a count taken earlier will not agree with a list taken now.
+      const [fresh, listed] = await Promise.all([
+        get('/dashboard/patient', patient.token),
+        get('/appointments', patient.token),
+      ]);
+
+      const scheduled = listed.json.appointments.filter((a) => a.status === 'scheduled').length;
+      assert.equal(fresh.json.counts.bookedAppointments, scheduled);
     });
 
     it('names the clinician on the upcoming appointment, which is what the card shows', () => {
@@ -108,19 +115,99 @@ describe('Clinician dashboard', () => {
     });
 
     it('counts only released summaries, never drafts', async () => {
-      const released = (await get(`/ai/patient/${mine.patientId}/summaries`, patient.token)).json
-        .summaries;
-      assert.equal(mine.counts.summariesAvailable, released.length);
-      assert.ok(released.every((s) => s.finalized), 'nothing unreleased reaches the patient');
+      const [fresh, released] = await Promise.all([
+        get('/dashboard/patient', patient.token),
+        get(`/ai/patient/${mine.patientId}/summaries`, patient.token),
+      ]);
+
+      assert.equal(fresh.json.counts.summariesAvailable, released.json.summaries.length);
+      assert.ok(
+        released.json.summaries.every((s) => s.finalized),
+        'nothing unreleased reaches the patient'
+      );
     });
   });
 
-  it('shows only this clinician\'s day', async () => {
-    const mine = await get(
-      `/appointments?clinicianId=${clinician.user.id}&from=${daysFromNow(0)}&to=${daysFromNow(0)}`,
-      clinician.token
-    );
+  describe('the administrative side', () => {
+    let clinic;
+
+    before(async () => {
+      clinic = (await get('/dashboard/admin', admin.token)).json;
+    });
+
+    it('is admin only', async () => {
+      assert.equal((await get('/dashboard/admin', clinician.token)).status, 403);
+      assert.equal((await get('/dashboard/admin', patient.token)).status, 403);
+      assert.equal((await get('/dashboard/admin', null)).status, 401);
+    });
+
+    it('returns the counts the screen shows', () => {
+      for (const key of ['appointmentsToday', 'awaitingFollowUp', 'noShowsToday', 'patients']) {
+        assert.equal(typeof clinic.counts[key], 'number', `${key} is a number`);
+      }
+      assert.ok(Array.isArray(clinic.today));
+      assert.ok(Array.isArray(clinic.busyDays));
+    });
+
+    it('counts every patient on the books', async () => {
+      const [fresh, directory] = await Promise.all([
+        get('/dashboard/admin', admin.token),
+        get('/patients?limit=100', admin.token),
+      ]);
+      assert.equal(fresh.json.counts.patients, directory.json.total);
+    });
+
+    it('shows the whole clinic, not one clinician', async () => {
+      const mine = (await get('/dashboard/clinician', clinician.token)).json;
+      assert.ok(
+        clinic.today.length >= mine.today.length,
+        "the clinic's day includes at least this clinician's"
+      );
+      assert.ok(clinic.today.every((a) => !!a.clinicianName), 'each row names who is seeing them');
+    });
+
+    it('names the patient and offers a record to open on every row', () => {
+      assert.ok(clinic.today.every((a) => !!a.patientName && !!a.patientId));
+    });
+
+    it('rejects a malformed month', async () => {
+      assert.equal((await get('/dashboard/admin?month=nope', admin.token)).status, 400);
+    });
+  });
+
+  describe('the clinicians list used for booking', () => {
+    it('is available to staff and returns names', async () => {
+      const { status, json } = await get('/users/clinicians', admin.token);
+      assert.equal(status, 200);
+      assert.ok(json.clinicians.length > 0);
+      assert.ok(json.clinicians.every((c) => c.id && c.name));
+    });
+
+    it('exposes nothing beyond an id and a name', async () => {
+      const { json } = await get('/users/clinicians', admin.token);
+      const keys = Object.keys(json.clinicians[0]).sort();
+      assert.deepEqual(keys, ['id', 'name'], 'no email, no hash, no role');
+    });
+
+    it('is closed to patients', async () => {
+      assert.equal((await get('/users/clinicians', patient.token)).status, 403);
+      assert.equal((await get('/users/clinicians', null)).status, 401);
+    });
+  });
+
+  it("shows only this clinician's day", async () => {
+    // Read together, not against the snapshot from `before`: other test files
+    // book and cancel for this clinician in parallel, so two reads taken apart
+    // legitimately disagree.
+    const [fresh, mine] = await Promise.all([
+      get('/dashboard/clinician', clinician.token),
+      get(
+        `/appointments?clinicianId=${clinician.user.id}&from=${daysFromNow(0)}&to=${daysFromNow(0)}`,
+        clinician.token
+      ),
+    ]);
+
     const ids = mine.json.appointments.map((a) => a.id).sort();
-    assert.deepEqual(dashboard.today.map((a) => a.id).sort(), ids);
+    assert.deepEqual(fresh.json.today.map((a) => a.id).sort(), ids);
   });
 });

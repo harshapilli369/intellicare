@@ -160,4 +160,55 @@ const patientDashboard = async (req, res, next) => {
   }
 };
 
-module.exports = { clinicianDashboard, patientDashboard };
+// The administrative view is the clinic's day rather than one clinician's, and
+// its figures are the work waiting to be done: visits that have come and gone
+// without anyone recording what happened, and the ones already marked missed.
+const adminDashboard = async (req, res, next) => {
+  try {
+    const now = new Date();
+    const [year, month] = (req.query.month || asDate(now).slice(0, 7)).split('-').map(Number);
+
+    const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const dayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    const monthStart = new Date(year, month - 1, 1, 0, 0, 0, 0);
+    const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
+
+    const [today, monthAppointments, awaitingFollowUp, patientCount] = await Promise.all([
+      Appointment.findAll({
+        where: { scheduledAt: { [Op.between]: [dayStart, dayEnd] } },
+        include: WITH_NAMES,
+        order: [['scheduledAt', 'ASC']],
+      }),
+      Appointment.findAll({
+        where: {
+          status: { [Op.ne]: 'cancelled' },
+          scheduledAt: { [Op.between]: [monthStart, monthEnd] },
+        },
+        attributes: ['scheduledAt'],
+      }),
+      // Past its time and still marked as scheduled: nobody has said whether it
+      // happened, so it is the administrator's to chase.
+      Appointment.count({ where: { status: 'scheduled', scheduledAt: { [Op.lt]: now } } }),
+      Patient.count(),
+    ]);
+
+    res.json({
+      success: true,
+      counts: {
+        appointmentsToday: today.filter((a) => a.status !== 'cancelled').length,
+        awaitingFollowUp,
+        noShowsToday: today.filter((a) => a.status === 'no_show').length,
+        patients: patientCount,
+      },
+      today: today.map(shape),
+      busyDays: [
+        ...new Set(monthAppointments.map((a) => new Date(a.scheduledAt).getDate())),
+      ].sort((a, b) => a - b),
+      month: `${year}-${String(month).padStart(2, '0')}`,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { clinicianDashboard, patientDashboard, adminDashboard };
