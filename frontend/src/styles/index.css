@@ -26,3 +26,13 @@ body {
 .btn-solid {
   @apply min-w-[10.5rem] rounded-lg bg-brand px-6 py-2.5 text-center text-sm font-medium text-white transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-40;
 }
+
+/* Full-width outlined action, used under the patient record. */
+.btn-block-outline {
+  @apply w-full rounded-lg border-2 border-brand px-6 py-3.5 text-center text-base font-bold text-brand transition hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-40;
+}
+
+/* Small tinted action attached to a single appointment. */
+.btn-chip {
+  @apply rounded bg-brand-50 px-3 py-1.5 text-center text-[11px] font-medium leading-tight text-brand transition hover:bg-brand-50/60 disabled:cursor-not-allowed disabled:opacity-50;
+}
