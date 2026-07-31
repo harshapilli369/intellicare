@@ -105,6 +105,36 @@ describe('Screen data', () => {
     });
   });
 
+  describe('the appointment notes panel', () => {
+    it('returns the fields the panel decides Edit visibility from', async () => {
+      const { post } = require('./helpers');
+      const record = await get(`/patients/${eliasId}`, clinician.token);
+      const appointmentId = record.json.patient.appointments[0].id;
+
+      await post('/notes', clinician.token, {
+        appointmentId,
+        body: 'Written so the panel has something to render.',
+      });
+
+      const { status, json } = await get(`/notes/appointment/${appointmentId}`, clinician.token);
+      assert.equal(status, 200);
+      assert.ok(json.notes.length > 0);
+
+      for (const note of json.notes) {
+        assert.equal(typeof note.id, 'string', 'an id to edit against');
+        assert.equal(typeof note.body, 'string', 'a body to show');
+        assert.equal(typeof note.authorId, 'number', 'an author, to offer Edit only on your own');
+        assert.ok(note.createdAt, 'a timestamp, to tell whether the window has closed');
+      }
+    });
+
+    it('is closed to a patient, who has no entry point to it', async () => {
+      const record = await get(`/patients/${eliasId}`, clinician.token);
+      const appointmentId = record.json.patient.appointments[0].id;
+      assert.equal((await get(`/notes/appointment/${appointmentId}`, patient.token)).status, 403);
+    });
+  });
+
   describe('the patient record', () => {
     it('returns every field the record renders', async () => {
       const { json } = await get(`/patients/${eliasId}`, clinician.token);
