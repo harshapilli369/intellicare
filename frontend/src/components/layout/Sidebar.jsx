@@ -7,6 +7,7 @@ const LINKS = {
   clinician: [
     { to: '/clinician', label: 'Dashboard', end: true },
     { to: '/clinician/patients', label: 'Patients' },
+    { to: '/clinician/appointments', label: 'Appointments' },
     { to: '/clinician/ai-summaries', label: 'AI Summaries' },
   ],
   admin: [

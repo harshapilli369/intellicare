@@ -8,6 +8,7 @@ import Login from './pages/auth/Login';
 import SignUp from './pages/auth/SignUp';
 import LaunchPage from './pages/LaunchPage';
 import ClinicianDashboard from './pages/clinician/Dashboard';
+import ClinicianSchedule from './pages/clinician/Schedule';
 import AISummaries from './pages/clinician/AISummaries';
 import AdminDashboard from './pages/admin/Dashboard';
 import PatientDashboard from './pages/patient/Dashboard';
@@ -37,6 +38,7 @@ const App = () => (
     <Route path="/clinician" element={rolePage(['clinician'], <ClinicianDashboard />)} />
     <Route path="/clinician/patients" element={rolePage(['clinician'], <PatientsList />)} />
     <Route path="/clinician/patients/:id" element={rolePage(['clinician'], <PatientDetail />)} />
+    <Route path="/clinician/appointments" element={rolePage(['clinician'], <ClinicianSchedule />)} />
     <Route path="/clinician/ai-summaries" element={rolePage(['clinician'], <AISummaries />)} />
     <Route path="/admin" element={rolePage(['admin'], <AdminDashboard />)} />
     <Route path="/admin/patients" element={rolePage(['admin'], <PatientsList />)} />
