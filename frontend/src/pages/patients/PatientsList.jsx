@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
+import BookingDialog from '../../components/appointments/BookingDialog';
 import PatientList from '../../components/patients/PatientList';
 import SearchInput from '../../components/common/SearchInput';
 import useDebouncedValue from '../../hooks/useDebouncedValue';
@@ -23,6 +24,8 @@ const PatientsList = () => {
   const [page, setPage] = useState(1);
   const [data, setData] = useState(EMPTY);
   const [loading, setLoading] = useState(true);
+  // The patient a visit is being booked for, if any.
+  const [bookingFor, setBookingFor] = useState(null);
 
   const debouncedSearch = useDebouncedValue(search, 300);
 
@@ -91,8 +94,17 @@ const PatientsList = () => {
       </div>
 
       <div className="mt-2">
-        <PatientList patients={data.patients} loading={loading} onView={openPatient} />
+        <PatientList
+          patients={data.patients}
+          loading={loading}
+          onView={openPatient}
+          onBook={setBookingFor}
+        />
       </div>
+
+      {bookingFor && (
+        <BookingDialog patient={bookingFor} onClose={() => setBookingFor(null)} onBooked={() => {}} />
+      )}
 
       {data.pages > 1 && (
         <div className="flex items-center gap-3 pt-2">

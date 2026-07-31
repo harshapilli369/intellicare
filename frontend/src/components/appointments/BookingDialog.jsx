@@ -24,11 +24,13 @@ const formatSlot = (value) =>
 
 // Booking on a patient's behalf: choose who, with whom, and one of the times
 // the clinician actually has free that day.
-const BookingDialog = ({ onClose, onBooked }) => {
+// `patient` pre-selects who the visit is for, when the dialog is opened from a
+// row that already names them.
+const BookingDialog = ({ onClose, onBooked, patient = null }) => {
   const [patients, setPatients] = useState([]);
   const [clinicians, setClinicians] = useState([]);
 
-  const [patientId, setPatientId] = useState('');
+  const [patientId, setPatientId] = useState(patient ? String(patient.id) : '');
   const [clinicianId, setClinicianId] = useState('');
   const [date, setDate] = useState(today());
   const [reason, setReason] = useState('');
@@ -99,21 +101,27 @@ const BookingDialog = ({ onClose, onBooked }) => {
   return (
     <Modal title="Book an appointment" onClose={onClose} width="max-w-2xl">
       <div className="space-y-5">
-        <label className="block">
-          <span className="text-sm font-medium text-slate-700">Patient</span>
-          <select
-            value={patientId}
-            onChange={(event) => setPatientId(event.target.value)}
-            className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand"
-          >
-            <option value="">Choose a patient...</option>
-            {patients.map((patient) => (
-              <option key={patient.id} value={patient.id}>
-                {patient.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        {patient ? (
+          <p className="text-sm text-slate-700">
+            Booking for <span className="font-semibold text-slate-900">{patient.name}</span>
+          </p>
+        ) : (
+          <label className="block">
+            <span className="text-sm font-medium text-slate-700">Patient</span>
+            <select
+              value={patientId}
+              onChange={(event) => setPatientId(event.target.value)}
+              className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand"
+            >
+              <option value="">Choose a patient...</option>
+              {patients.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         <div className="grid gap-5 sm:grid-cols-2">
           <label className="block">

@@ -3,6 +3,7 @@ const { Op } = require('sequelize');
 const { sequelize } = require('../config/mysql');
 const { Appointment, Patient, User } = require('../models/mysql');
 const { patientProfileFor } = require('../middleware/ownership');
+const { notify } = require('../services/notificationService');
 const {
   HOLDS_A_SLOT,
   startOfDay,
@@ -175,6 +176,19 @@ const book = async (req, res, next) => {
     await transaction.commit();
 
     const appointment = await Appointment.findByPk(created.id, { include: WITH_NAMES });
+
+    // The clinician's diary just changed without them doing anything, so they
+    // are told. Failing to raise it must not fail the booking.
+    notify({
+      userId: clinicianId,
+      kind: 'appointment-booked',
+      title: `New appointment: ${appointment.Patient?.User?.name}`,
+      body: `${appointment.reason || 'Appointment'} on ${new Date(
+        appointment.scheduledAt
+      ).toLocaleString('en-CA')}`,
+      link: '/clinician/appointments',
+    }).catch(() => {});
+
     res.status(201).json({ success: true, appointment: shape(appointment) });
   } catch (err) {
     if (transaction && !transaction.finished) await transaction.rollback();
@@ -258,6 +272,15 @@ const cancel = async (req, res, next) => {
     await appointment.save();
 
     const saved = await Appointment.findByPk(appointment.id, { include: WITH_NAMES });
+
+    notify({
+      userId: saved.clinicianId,
+      kind: 'appointment-cancelled',
+      title: `Cancelled: ${saved.Patient?.User?.name}`,
+      body: `The visit on ${new Date(saved.scheduledAt).toLocaleString('en-CA')} was cancelled.`,
+      link: '/clinician/appointments',
+    }).catch(() => {});
+
     res.json({ success: true, appointment: shape(saved) });
   } catch (err) {
     next(err);
