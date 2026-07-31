@@ -4,6 +4,7 @@ const { body } = require('express-validator');
 
 const authController = require('../controllers/authController');
 const authenticate = require('../middleware/authenticate');
+const authorize = require('../middleware/authorize');
 const validate = require('../middleware/validate');
 
 // Sign-in is the one unauthenticated endpoint that checks a secret, so it is
@@ -24,16 +25,34 @@ const credentials = [
   body('password').isString().bail().isLength({ min: 1, max: 200 }),
 ];
 
+// Public sign-up. `role` is deliberately absent: this route is unauthenticated,
+// so accepting one would let any caller register themselves as staff. Anything
+// sent under that name is ignored and the account is created as a patient.
 router.post(
   '/register',
   [
     ...credentials,
     body('name').isString().trim().notEmpty(),
     body('phone').optional().isString(),
-    body('role').optional().isIn(['clinician', 'admin', 'patient']),
   ],
   validate,
   authController.register
+);
+
+// Staff accounts. Creating a clinician or an administrator is an
+// administrator's decision, so the role is only honoured behind that check.
+router.post(
+  '/staff',
+  authenticate,
+  authorize('admin'),
+  [
+    ...credentials,
+    body('name').isString().trim().notEmpty(),
+    body('phone').optional().isString(),
+    body('role').isIn(['clinician', 'admin']),
+  ],
+  validate,
+  authController.createStaff
 );
 
 router.post('/login', loginLimiter, credentials, validate, authController.login);
