@@ -7,6 +7,7 @@ const { User, Patient, Appointment, Prescription, syncModels } = require('../src
 const { connectMongoDB } = require('../src/config/mongodb');
 const ClinicalNote = require('../src/models/mongodb/ClinicalNote');
 const AISummary = require('../src/models/mongodb/AISummary');
+const ReminderDispatch = require('../src/models/mongodb/ReminderDispatch');
 
 const PASSWORD = 'Password123!';
 
@@ -67,6 +68,9 @@ const clearAll = async () => {
   await User.destroy({ where: {} });
   await ClinicalNote.deleteMany({});
   await AISummary.deleteMany({});
+  // Reminders are keyed on appointment ids that are about to disappear; leaving
+  // them behind would suppress reminders for whatever reuses those ids.
+  await ReminderDispatch.deleteMany({});
 };
 
 const seed = async () => {

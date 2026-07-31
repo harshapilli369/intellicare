@@ -14,6 +14,7 @@ const appointmentRoutes = require('./routes/appointmentRoutes');
 const noteRoutes = require('./routes/noteRoutes');
 const aiRoutes = require('./routes/aiRoutes');
 const errorHandler = require('./middleware/errorHandler');
+const reminderJob = require('./jobs/reminderJob');
 
 const app = express();
 
@@ -53,6 +54,9 @@ async function start() {
     console.error(`Database connection failed: ${err.message}`);
     process.exit(1);
   }
+  // Started after the databases are up, since the first scan reads both.
+  reminderJob.start();
+
   app.listen(PORT, () => console.log(`IntelliCare API running on port ${PORT}`));
 }
 
