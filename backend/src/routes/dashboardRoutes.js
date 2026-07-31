@@ -21,4 +21,7 @@ router.get(
   dashboardController.clinicianDashboard
 );
 
+// Scoped to the signed-in patient's own record, resolved from the token.
+router.get('/patient', authorize('patient'), dashboardController.patientDashboard);
+
 module.exports = router;

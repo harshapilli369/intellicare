@@ -14,7 +14,10 @@ const LINKS = {
     { to: '/admin', label: 'Dashboard', end: true },
     { to: '/admin/patients', label: 'Patients' },
   ],
-  patient: [{ to: '/patient', label: 'Dashboard' }],
+  patient: [
+    { to: '/patient', label: 'Dashboard', end: true },
+    { to: '/patient/summaries', label: 'Appointment Reports' },
+  ],
 };
 
 const roleLabel = {

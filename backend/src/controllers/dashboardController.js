@@ -1,7 +1,8 @@
 const { Op } = require('sequelize');
 
-const { Appointment, Patient, User } = require('../models/mysql');
+const { Appointment, Patient, Prescription, User } = require('../models/mysql');
 const AISummary = require('../models/mongodb/AISummary');
+const { patientProfileFor } = require('../middleware/ownership');
 
 const WITH_NAMES = [
   { model: Patient, include: { model: User, attributes: ['name'] } },
@@ -100,4 +101,63 @@ const clinicianDashboard = async (req, res, next) => {
   }
 };
 
-module.exports = { clinicianDashboard };
+// A course of medication runs for a written duration such as "30 days", so when
+// it runs out is the day it was issued plus that many days. Anything the
+// duration cannot be read from is left out rather than guessed at.
+const RUNS_OUT_WITHIN_DAYS = 14;
+
+const runsOutOn = (prescription) => {
+  const match = /(\d+)\s*(day|week|month)/i.exec(prescription.duration || '');
+  if (!match) return null;
+
+  const amount = Number(match[1]);
+  const perUnit = { day: 1, week: 7, month: 30 }[match[2].toLowerCase()];
+
+  const issued = new Date(prescription.createdAt);
+  issued.setDate(issued.getDate() + amount * perUnit);
+  return issued;
+};
+
+const patientDashboard = async (req, res, next) => {
+  try {
+    const profile = await patientProfileFor(req.user);
+    if (!profile) return res.status(404).json({ message: 'No patient record for this account' });
+
+    const now = new Date();
+
+    const [appointments, upcoming, prescriptions, summaries] = await Promise.all([
+      Appointment.findAll({ where: { patientId: profile.id }, attributes: ['id', 'status'] }),
+      Appointment.findOne({
+        where: { patientId: profile.id, status: 'scheduled', scheduledAt: { [Op.gt]: now } },
+        include: WITH_NAMES,
+        order: [['scheduledAt', 'ASC']],
+      }),
+      Prescription.findAll({ where: { patientId: profile.id } }),
+      // Only what the clinician has released; a draft summary is not the
+      // patient's to read.
+      AISummary.find({ patientId: profile.id, finalized: true }).sort({ createdAt: -1 }),
+    ]);
+
+    const horizon = new Date(now.getTime() + RUNS_OUT_WITHIN_DAYS * 86_400_000);
+    const refillsDueSoon = prescriptions.filter((prescription) => {
+      const runsOut = runsOutOn(prescription);
+      return runsOut && runsOut > now && runsOut <= horizon;
+    }).length;
+
+    res.json({
+      success: true,
+      patientId: profile.id,
+      counts: {
+        bookedAppointments: appointments.filter((a) => a.status === 'scheduled').length,
+        refillsDueSoon,
+        summariesAvailable: summaries.length,
+      },
+      upcoming: upcoming ? shape(upcoming) : null,
+      pastVisits: appointments.filter((a) => a.status === 'completed').length,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { clinicianDashboard, patientDashboard };

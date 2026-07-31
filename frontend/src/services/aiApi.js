@@ -13,3 +13,8 @@ export const generatePost = (appointmentId, clinicianNotes) =>
 
 export const finalizeSummary = (appointmentId, edits) =>
   api.patch(`/ai/summary/${appointmentId}/finalize`, edits).then((r) => r.data.summary);
+
+// Only the summaries a clinician has released. A patient may ask for their own;
+// the backend refuses any other patient's.
+export const getPatientSummaries = (patientId) =>
+  api.get(`/ai/patient/${patientId}/summaries`).then((r) => r.data.summaries);
