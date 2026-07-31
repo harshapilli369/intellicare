@@ -5,7 +5,19 @@ const monthName = (year, month) =>
 
 // A month grid with a mark under each day that has something booked. Takes the
 // busy days as numbers rather than appointments, since that is all it draws.
-const MiniCalendar = ({ year, month, busyDays = [], onPrevious, onNext }) => {
+//
+// Passing `onSelectDay` turns it into a picker: days become buttons, the chosen
+// one is filled, and anything before today is refused.
+const MiniCalendar = ({
+  year,
+  month,
+  busyDays = [],
+  onPrevious,
+  onNext,
+  selectedDay = null,
+  onSelectDay = null,
+  title = 'Calendar',
+}) => {
   const firstWeekday = new Date(year, month - 1, 1).getDay();
   const daysInMonth = new Date(year, month, 0).getDate();
 
@@ -17,10 +29,17 @@ const MiniCalendar = ({ year, month, busyDays = [], onPrevious, onNext }) => {
     ...Array.from({ length: daysInMonth }, (_, index) => index + 1),
   ];
 
+  // A day already gone cannot be booked, so the picker refuses it.
+  const isPast = (day) => {
+    const candidate = new Date(year, month - 1, day);
+    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    return candidate < startOfToday;
+  };
+
   return (
     <section className="card">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-slate-900">Calendar</h2>
+        <h2 className="text-xl font-bold text-slate-900">{title}</h2>
       </div>
 
       <div className="mt-4 flex items-center justify-between">
@@ -55,8 +74,21 @@ const MiniCalendar = ({ year, month, busyDays = [], onPrevious, onNext }) => {
 
           {cells.map((day, index) => (
             <div key={day ?? `blank-${index}`} className="flex flex-col items-center gap-1">
-              {day && (
-                <>
+              {day &&
+                (onSelectDay ? (
+                  <button
+                    type="button"
+                    onClick={() => onSelectDay(day)}
+                    disabled={isPast(day)}
+                    className={`h-8 w-8 rounded-lg text-sm transition ${
+                      day === selectedDay
+                        ? 'bg-slate-900 font-semibold text-white'
+                        : 'text-slate-800 hover:bg-slate-100 disabled:text-slate-300 disabled:hover:bg-transparent'
+                    }`}
+                  >
+                    {day}
+                  </button>
+                ) : (
                   <span
                     className={`text-sm ${
                       isThisMonth && day === today.getDate()
@@ -66,13 +98,14 @@ const MiniCalendar = ({ year, month, busyDays = [], onPrevious, onNext }) => {
                   >
                     {day}
                   </span>
-                  <span
-                    aria-hidden="true"
-                    className={`h-1.5 w-1.5 rounded-full ${
-                      busyDays.includes(day) ? 'bg-red-500' : 'bg-transparent'
-                    }`}
-                  />
-                </>
+                ))}
+              {day && !onSelectDay && (
+                <span
+                  aria-hidden="true"
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    busyDays.includes(day) ? 'bg-red-500' : 'bg-transparent'
+                  }`}
+                />
               )}
             </div>
           ))}

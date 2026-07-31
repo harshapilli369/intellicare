@@ -14,6 +14,8 @@ import AdminDashboard from './pages/admin/Dashboard';
 import AdminAppointments from './pages/admin/Appointments';
 import PatientDashboard from './pages/patient/Dashboard';
 import PatientSummaries from './pages/patient/Summaries';
+import PatientAppointments from './pages/patient/Appointments';
+import BookAppointment from './pages/patient/BookAppointment';
 import PatientsList from './pages/patients/PatientsList';
 import PatientDetail from './pages/patients/PatientDetail';
 
@@ -47,6 +49,8 @@ const App = () => (
     <Route path="/admin/patients" element={rolePage(['admin'], <PatientsList />)} />
     <Route path="/admin/patients/:id" element={rolePage(['admin'], <PatientDetail />)} />
     <Route path="/patient" element={rolePage(['patient'], <PatientDashboard />)} />
+    <Route path="/patient/appointments" element={rolePage(['patient'], <PatientAppointments />)} />
+    <Route path="/patient/book" element={rolePage(['patient'], <BookAppointment />)} />
     <Route path="/patient/summaries" element={rolePage(['patient'], <PatientSummaries />)} />
     <Route path="/" element={<Home />} />
     <Route path="*" element={<Home />} />

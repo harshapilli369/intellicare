@@ -114,9 +114,8 @@ const PatientDashboard = () => {
         </button>
         <button
           type="button"
-          disabled
-          title="Booking arrives with the patient self-service screens"
-          className="rounded-md bg-brand px-6 py-4 text-base font-bold text-white transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-40"
+          onClick={() => navigate('/patient/book')}
+          className="rounded-md bg-brand px-6 py-4 text-base font-bold text-white transition hover:bg-brand-dark"
         >
           Book an Appointment
         </button>

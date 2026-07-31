@@ -14,7 +14,7 @@ const ageFrom = (dateOfBirth) => {
 // One entry in the directory: who the patient is, what they are being seen for,
 // and the two actions that can be taken from the list. Memoized so typing in
 // the search box only re-renders the entries whose patient actually changed.
-const PatientEntry = memo(({ patient, onView }) => {
+const PatientEntry = memo(({ patient, onView, onBook }) => {
   const age = ageFrom(patient.dateOfBirth);
 
   return (
@@ -31,12 +31,7 @@ const PatientEntry = memo(({ patient, onView }) => {
         <button type="button" onClick={() => onView(patient.id)} className="btn-solid">
           view info
         </button>
-        <button
-          type="button"
-          disabled
-          title="Booking arrives with the appointments API"
-          className="btn-solid"
-        >
+        <button type="button" onClick={() => onBook(patient)} className="btn-solid">
           Book appointment
         </button>
       </div>
@@ -46,7 +41,7 @@ const PatientEntry = memo(({ patient, onView }) => {
 
 PatientEntry.displayName = 'PatientEntry';
 
-const PatientList = ({ patients, loading, onView }) => {
+const PatientList = ({ patients, loading, onView, onBook }) => {
   if (loading) return <p className="py-10 text-sm text-slate-500">Loading patients...</p>;
 
   if (patients.length === 0) {
@@ -56,7 +51,7 @@ const PatientList = ({ patients, loading, onView }) => {
   return (
     <ul className="divide-y divide-slate-100">
       {patients.map((patient) => (
-        <PatientEntry key={patient.id} patient={patient} onView={onView} />
+        <PatientEntry key={patient.id} patient={patient} onView={onView} onBook={onBook} />
       ))}
     </ul>
   );

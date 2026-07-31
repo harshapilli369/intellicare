@@ -1,6 +1,7 @@
 const { describe, it, before } = require('node:test');
 const assert = require('node:assert/strict');
 
+
 const {
   SEEDED,
   get,
@@ -334,6 +335,70 @@ describe('Appointments', () => {
 
       const { status } = await patch(`/appointments/${soon.id}/cancel`, admin.token);
       assert.equal(status, 409);
+    });
+  });
+
+  describe('what the clinician is told', () => {
+    // A day of its own. The shared `slots` are largely spoken for by the tests
+    // above, and a clinic day only has as many slots as it has half hours.
+    let ownDay;
+    let ownSlots;
+
+    before(async () => {
+      ownDay = pickDay();
+      ownSlots = (
+        await get(
+          `/appointments/availability?clinicianId=${clinician.user.id}&date=${ownDay}`,
+          admin.token
+        )
+      ).json.slots;
+      assert.ok(ownSlots.length >= 2, 'the test needs at least two free times');
+    });
+
+    const unreadTitles = async (token) =>
+      (await get('/notifications', token)).json.notifications.map((n) => n.title);
+
+    it('raises a notification when a patient books, and when they cancel', async () => {
+      const booked = await post('/appointments', patient.token, {
+        clinicianId: clinician.user.id,
+        scheduledAt: ownSlots[0],
+        reason: 'Notification check',
+      });
+      const id = booked.json.appointment.id;
+
+      const afterBooking = await unreadTitles(clinician.token);
+      assert.ok(
+        afterBooking.some((title) => title.includes('New appointment')),
+        'the clinician hears about a booking they did not make'
+      );
+
+      await patch(`/appointments/${id}/cancel`, patient.token);
+
+      const afterCancel = await unreadTitles(clinician.token);
+      assert.ok(
+        afterCancel.some((title) => title.includes('Cancelled')),
+        'and about it being cancelled'
+      );
+    });
+
+    it('does not tell the patient about their own action', async () => {
+      const booked = await post('/appointments', patient.token, {
+        clinicianId: clinician.user.id,
+        scheduledAt: ownSlots[1],
+      });
+      assert.equal(booked.status, 201);
+
+      // Counting everything the patient has would be at the mercy of other test
+      // files raising notifications for the same account, so this asks the
+      // precise question: was a booking notice addressed to the person who
+      // booked?
+      const { json } = await get('/notifications', patient.token);
+      const ownActions = json.notifications.filter((n) =>
+        ['appointment-booked', 'appointment-cancelled'].includes(n.kind)
+      );
+      assert.deepEqual(ownActions, [], 'nobody needs telling what they just did themselves');
+
+      await patch(`/appointments/${booked.json.appointment.id}/cancel`, patient.token);
     });
   });
 
