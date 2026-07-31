@@ -24,6 +24,28 @@ const shape = (patient) => ({
   allergies: patient.allergies || [],
 });
 
+// The directory shows what each patient is currently being seen for, which is
+// the reason on their most recent appointment. Read for the whole page in one
+// query so the list does not issue a query per row.
+const withConditions = async (patients) => {
+  if (patients.length === 0) return [];
+
+  const appointments = await Appointment.findAll({
+    where: { patientId: { [Op.in]: patients.map((patient) => patient.id) } },
+    order: [['scheduledAt', 'DESC']],
+  });
+
+  const latest = new Map();
+  appointments.forEach((appointment) => {
+    if (!latest.has(appointment.patientId)) latest.set(appointment.patientId, appointment);
+  });
+
+  return patients.map((patient) => ({
+    ...shape(patient),
+    condition: latest.get(patient.id)?.reason || null,
+  }));
+};
+
 const list = async (req, res, next) => {
   try {
     const page = req.query.page || 1;
@@ -31,32 +53,44 @@ const list = async (req, res, next) => {
     const search = (req.query.search || '').trim();
     const { sex } = req.query;
 
-    // A patient is looked up by the name or email on their account, so the
-    // search filters the joined User and not the profile itself.
-    const userWhere = search
-      ? {
-          [Op.or]: [
-            { name: { [Op.like]: `%${search}%` } },
-            { email: { [Op.like]: `%${search}%` } },
-          ],
-        }
-      : undefined;
+    const where = {};
+    if (sex) where.sex = sex;
 
-    // Filters read from the profile, so they stay on the Patient side and
-    // narrow the same query rather than trimming an already-paginated page.
-    const profileWhere = sex ? { sex } : undefined;
+    if (search) {
+      const like = { [Op.like]: `%${search}%` };
+
+      // The directory is searched by who the patient is or by what they are
+      // being seen for, and that reason lives on the appointment rather than
+      // the profile. Resolving the matching ids up front keeps this to one
+      // extra query instead of a join that would distort the paged count.
+      const byReason = await Appointment.findAll({
+        attributes: ['patientId'],
+        where: { reason: like },
+        group: ['patientId'],
+      });
+
+      const matches = [{ '$User.name$': like }, { '$User.email$': like }];
+      if (byReason.length) {
+        matches.push({ id: { [Op.in]: byReason.map((row) => row.patientId) } });
+      }
+      where[Op.or] = matches;
+    }
 
     const { rows, count } = await Patient.findAndCountAll({
-      where: profileWhere,
-      include: { model: User, attributes: USER_FIELDS, where: userWhere, required: true },
+      where,
+      include: { model: User, attributes: USER_FIELDS, required: true },
       order: [[User, 'name', 'ASC']],
       limit,
       offset: (page - 1) * limit,
+      // The search reaches into the joined User, so the rows and the count are
+      // resolved against the join rather than a subquery over patients alone.
+      subQuery: false,
+      distinct: true,
     });
 
     res.json({
       success: true,
-      patients: rows.map(shape),
+      patients: await withConditions(rows),
       page,
       limit,
       total: count,

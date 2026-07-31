@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
-import PatientTable from '../../components/patients/PatientTable';
+import PatientList from '../../components/patients/PatientList';
+import SearchInput from '../../components/common/SearchInput';
 import useDebouncedValue from '../../hooks/useDebouncedValue';
 import { useAuth } from '../../context/AuthContext';
 import { listPatients } from '../../services/patientApi';
@@ -55,41 +56,31 @@ const PatientsList = () => {
     };
   }, [page, debouncedSearch, sex]);
 
-  // Stable identity keeps the memoized rows from re-rendering on every keystroke.
+  // Stable identity keeps the memoized entries from re-rendering on every keystroke.
   const base = user?.role === 'admin' ? '/admin' : '/clinician';
-  const openPatient = useCallback(
-    (id) => navigate(`${base}/patients/${id}`),
-    [navigate, base]
-  );
-
-  const from = data.total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
-  const to = Math.min(page * PAGE_SIZE, data.total);
+  const openPatient = useCallback((id) => navigate(`${base}/patients/${id}`), [navigate, base]);
 
   return (
     <div>
-      <h1 className="text-2xl font-bold">Patients</h1>
-      <p className="mt-1 text-sm text-slate-600">
-        Search the directory and open a patient to see their full record.
-      </p>
+      <h1 className="sr-only">Patients</h1>
 
-      <div className="mt-6 flex flex-wrap items-end gap-3">
-        <label className="min-w-[16rem] flex-1">
-          <span className="text-sm font-medium text-slate-700">Search</span>
-          <input
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Name or email"
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand"
-          />
-        </label>
+      <SearchInput
+        value={search}
+        onChange={setSearch}
+        placeholder="Search Patient Name or Condition"
+      />
 
-        <label>
-          <span className="text-sm font-medium text-slate-700">Sex</span>
+      <div className="mt-4 flex items-center justify-between gap-4">
+        <p className="text-sm text-slate-500">
+          {data.total === 0 ? 'No patients' : `${data.total} patient${data.total === 1 ? '' : 's'}`}
+        </p>
+
+        <label className="flex items-center gap-2 text-sm text-slate-500">
+          Sex
           <select
             value={sex}
             onChange={(event) => setSex(event.target.value)}
-            className="mt-1 rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand"
+            className="rounded-md border border-slate-300 px-2 py-1 text-sm text-slate-700 outline-none focus:border-brand"
           >
             <option value="">All</option>
             <option value="Male">Male</option>
@@ -99,16 +90,12 @@ const PatientsList = () => {
         </label>
       </div>
 
-      <p className="mt-4 text-sm text-slate-600">
-        {data.total === 0 ? 'No patients' : `Showing ${from}-${to} of ${data.total}`}
-      </p>
-
       <div className="mt-2">
-        <PatientTable patients={data.patients} loading={loading} onOpen={openPatient} />
+        <PatientList patients={data.patients} loading={loading} onView={openPatient} />
       </div>
 
       {data.pages > 1 && (
-        <div className="mt-4 flex items-center gap-3">
+        <div className="flex items-center gap-3 pt-2">
           <button
             type="button"
             onClick={() => setPage((current) => current - 1)}
