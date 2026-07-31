@@ -29,10 +29,11 @@ const list = async (req, res, next) => {
     const page = req.query.page || 1;
     const limit = req.query.limit || 20;
     const search = (req.query.search || '').trim();
+    const { sex } = req.query;
 
     // A patient is looked up by the name or email on their account, so the
     // search filters the joined User and not the profile itself.
-    const where = search
+    const userWhere = search
       ? {
           [Op.or]: [
             { name: { [Op.like]: `%${search}%` } },
@@ -41,8 +42,13 @@ const list = async (req, res, next) => {
         }
       : undefined;
 
+    // Filters read from the profile, so they stay on the Patient side and
+    // narrow the same query rather than trimming an already-paginated page.
+    const profileWhere = sex ? { sex } : undefined;
+
     const { rows, count } = await Patient.findAndCountAll({
-      include: { model: User, attributes: USER_FIELDS, where, required: true },
+      where: profileWhere,
+      include: { model: User, attributes: USER_FIELDS, where: userWhere, required: true },
       order: [[User, 'name', 'ASC']],
       limit,
       offset: (page - 1) * limit,
