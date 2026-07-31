@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth, homePathFor } from '../../context/AuthContext';
 
 const Login = () => {
@@ -68,6 +68,13 @@ const Login = () => {
             {submitting ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
+
+        <p className="mt-5 text-center text-sm text-slate-600">
+          Want to create a profile?{' '}
+          <Link to="/signup" className="font-bold text-brand hover:underline">
+            Click here
+          </Link>
+        </p>
       </div>
     </div>
   );

@@ -5,6 +5,9 @@ import api from './api';
 export const listAppointments = (params = {}) =>
   api.get('/appointments', { params }).then((r) => r.data.appointments);
 
+export const getAppointment = (id) =>
+  api.get(`/appointments/${id}`).then((r) => r.data.appointment);
+
 export const getAvailability = (clinicianId, date) =>
   api.get('/appointments/availability', { params: { clinicianId, date } }).then((r) => r.data.slots);
 
