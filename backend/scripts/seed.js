@@ -8,6 +8,7 @@ const { connectMongoDB } = require('../src/config/mongodb');
 const ClinicalNote = require('../src/models/mongodb/ClinicalNote');
 const AISummary = require('../src/models/mongodb/AISummary');
 const ReminderDispatch = require('../src/models/mongodb/ReminderDispatch');
+const Notification = require('../src/models/mongodb/Notification');
 
 const PASSWORD = 'Password123!';
 
@@ -71,6 +72,8 @@ const clearAll = async () => {
   // Reminders are keyed on appointment ids that are about to disappear; leaving
   // them behind would suppress reminders for whatever reuses those ids.
   await ReminderDispatch.deleteMany({});
+  // Notifications point at the accounts being recreated, so they go too.
+  await Notification.deleteMany({});
 };
 
 const seed = async () => {

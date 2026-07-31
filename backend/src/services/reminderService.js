@@ -3,6 +3,7 @@ const { Op } = require('sequelize');
 const { Appointment, Patient, User } = require('../models/mysql');
 const ReminderDispatch = require('../models/mongodb/ReminderDispatch');
 const { sendMail } = require('./emailService');
+const { notify } = require('./notificationService');
 
 // How far ahead of a visit each reminder goes out, largest first so a patient
 // booking inside the shorter horizon still gets that reminder and not the one
@@ -86,6 +87,19 @@ const dispatchOne = async (appointment, offsetHours) => {
   }
 
   const { subject, text } = messageFor(appointment, offsetHours);
+
+  // The reminder is raised in the application as well as sent by mail. It is
+  // claimed by the same dispatch record, so it appears once however many times
+  // the scan runs, and it still appears when there is no mail configured or
+  // when sending fails.
+  await notify({
+    userId: appointment.Patient?.userId,
+    kind: 'appointment-reminder',
+    title: subject,
+    body: text,
+    link: '/patient',
+  });
+
   const result = await sendMail({ to, subject, text });
 
   claim.status = result.status;
