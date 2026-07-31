@@ -1,6 +1,6 @@
 const { Op } = require('sequelize');
 
-const { Appointment } = require('../models/mysql');
+const { Appointment, User } = require('../models/mysql');
 
 // The clinic's working day, as fixed-length slots. Kept in configuration rather
 // than per-clinician working hours, which the schema does not model yet.
@@ -47,8 +47,29 @@ const isWorkingTime = (when) => {
   return slotsForDate(dateString).some((slot) => slot.getTime() === when.getTime());
 };
 
+// Takes an exclusive lock on the clinician's own row for the rest of the
+// transaction, so that everything booking into that clinician's diary happens
+// one at a time.
+//
+// The obvious alternative - locking the slot itself with a `FOR UPDATE` search
+// of the appointments table - does not work here. A search that matches nothing
+// takes a gap lock rather than a row lock, several transactions can hold the
+// same gap at once, and each then needs an insert-intention lock that conflicts
+// with the others. They deadlock, or sit until the lock wait times out.
+// Locking a row that already exists avoids gap locks entirely, and clinicians
+// never contend with each other because each holds a different row.
+const lockClinicianDiary = (clinicianId, transaction) =>
+  User.findByPk(clinicianId, { transaction, lock: transaction.LOCK.UPDATE });
+
 // The appointment already holding this clinician's slot, if there is one.
 // `exclude` skips the appointment being moved, so it does not clash with itself.
+//
+// Inside a transaction this reads with a lock, and deliberately so. A plain read
+// under REPEATABLE READ answers from the snapshot taken when the transaction
+// began, which would report the slot free even after another booking had
+// committed into it. A locking read sees the latest committed row instead.
+// Callers hold the diary lock first, so only one of these runs at a time and it
+// never contends with another.
 const findClash = async (clinicianId, when, { exclude, transaction } = {}) => {
   const where = {
     clinicianId,
@@ -60,8 +81,6 @@ const findClash = async (clinicianId, when, { exclude, transaction } = {}) => {
   return Appointment.findOne({
     where,
     transaction,
-    // Held for the rest of the booking transaction so a second request cannot
-    // read the same slot as free and insert alongside this one.
     lock: transaction ? transaction.LOCK.UPDATE : undefined,
   });
 };
@@ -78,6 +97,7 @@ module.exports = {
   endOfDay,
   slotsForDate,
   isWorkingTime,
+  lockClinicianDiary,
   findClash,
   isWithinChangeWindow,
 };

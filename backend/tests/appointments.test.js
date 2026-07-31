@@ -188,6 +188,13 @@ describe('Appointments', () => {
         `the rest are refused as already booked, got ${statuses.join()}`
       );
 
+      // The losers must be turned away cleanly. Contention used to starve the
+      // connection pool and surface as a server error instead.
+      assert.ok(
+        statuses.every((status) => status < 500),
+        `no request fails with a server error, got ${statuses.join()}`
+      );
+
       await patch(`/appointments/${created[0].json.appointment.id}/cancel`, admin.token);
     });
   });
