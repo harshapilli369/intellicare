@@ -13,6 +13,7 @@ const LINKS = {
   admin: [
     { to: '/admin', label: 'Dashboard', end: true },
     { to: '/admin/patients', label: 'Patients' },
+    { to: '/admin/appointments', label: 'Appointments' },
   ],
   patient: [
     { to: '/patient', label: 'Dashboard', end: true },
