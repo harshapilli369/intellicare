@@ -1,4 +1,5 @@
 import { useAuth } from '../../context/AuthContext';
+import NotificationBell from '../notifications/NotificationBell';
 import Sidebar from './Sidebar';
 
 // The shell every signed-in screen sits inside: role navigation on the left, a
@@ -11,6 +12,7 @@ const AppLayout = ({ children }) => {
       <Sidebar />
       <main className="flex-1">
         <div className="flex items-center justify-end gap-4 px-8 pt-6">
+          <NotificationBell />
           <span className="text-sm text-slate-700">{user?.name}</span>
           <button
             type="button"
