@@ -21,3 +21,8 @@ body {
 .btn-outline {
   @apply rounded-md border border-brand px-4 py-2 text-sm font-medium text-brand transition hover:bg-brand-50 disabled:opacity-60;
 }
+
+/* The wide solid action button used down the right of the patient directory. */
+.btn-solid {
+  @apply min-w-[10.5rem] rounded-lg bg-brand px-6 py-2.5 text-center text-sm font-medium text-white transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-40;
+}
