@@ -23,5 +23,11 @@ module.exports = (sequelize) =>
       medicalHistory: { type: DataTypes.JSON, allowNull: false, defaultValue: [] },
       allergies: { type: DataTypes.JSON, allowNull: false, defaultValue: [] },
     },
-    { tableName: 'patients' }
+    {
+      tableName: 'patients',
+      // Removing a patient is a soft delete. The appointments, prescriptions,
+      // and notes that reference this row have to stay readable for the record,
+      // so the profile is marked deleted rather than dropped.
+      paranoid: true,
+    }
   );

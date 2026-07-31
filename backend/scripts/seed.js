@@ -55,7 +55,9 @@ const todayAt = (hour, minute) => {
 const clearAll = async () => {
   await Prescription.destroy({ where: {} });
   await Appointment.destroy({ where: {} });
-  await Patient.destroy({ where: {} });
+  // Patients are soft-deleted by default, so the reset asks for a real delete —
+  // otherwise re-seeding would pile up hidden rows behind the new ones.
+  await Patient.destroy({ where: {}, force: true });
   await User.destroy({ where: {} });
   await ClinicalNote.deleteMany({});
   await AISummary.deleteMany({});
