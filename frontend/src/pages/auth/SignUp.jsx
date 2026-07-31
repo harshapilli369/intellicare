@@ -10,7 +10,6 @@ const SignUp = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [role, setRole] = useState('admin');
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -26,12 +25,9 @@ const SignUp = () => {
     setSubmitting(true);
 
     try {
-      const user = await register({
-        name: fullName,
-        email,
-        password,
-        role,
-      });
+      // Signing up always creates a patient account; staff are added by an
+      // administrator, so no role is sent from here.
+      const user = await register({ name: fullName, email, password });
       navigate(homePathFor(user.role));
     } catch (err) {
       setError(err.response?.data?.message || 'Unable to create account');

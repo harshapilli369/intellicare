@@ -33,13 +33,22 @@ export const AuthProvider = ({ children }) => {
     return data.user;
   };
 
+  // Public sign-up. The account comes back as a patient whatever is sent, so the
+  // caller uses the role on the response rather than assuming one.
+  const register = async ({ name, email, password, phone }) => {
+    const { data } = await api.post('/auth/register', { name, email, password, phone });
+    localStorage.setItem('token', data.token);
+    setUser(data.user);
+    return data.user;
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

@@ -5,6 +5,8 @@ import ProtectedRoute from './routes/ProtectedRoute';
 import AppLayout from './components/layout/AppLayout';
 
 import Login from './pages/auth/Login';
+import SignUp from './pages/auth/SignUp';
+import LaunchPage from './pages/LaunchPage';
 import ClinicianDashboard from './pages/clinician/Dashboard';
 import AISummaries from './pages/clinician/AISummaries';
 import AdminDashboard from './pages/admin/Dashboard';
@@ -20,16 +22,18 @@ const rolePage = (roles, element) => (
   </ProtectedRoute>
 );
 
-// Sends the root path to the signed-in user's own area, or to sign in.
+// Sends a signed-in user to their own area. A visitor who is not signed in gets
+// the launch page rather than being pushed straight at a sign-in form.
 const Home = () => {
   const { user, loading } = useAuth();
   if (loading) return null;
-  return <Navigate to={user ? homePathFor(user.role) : '/login'} replace />;
+  return user ? <Navigate to={homePathFor(user.role)} replace /> : <LaunchPage />;
 };
 
 const App = () => (
   <Routes>
     <Route path="/login" element={<Login />} />
+    <Route path="/signup" element={<SignUp />} />
     <Route path="/clinician" element={rolePage(['clinician'], <ClinicianDashboard />)} />
     <Route path="/clinician/patients" element={rolePage(['clinician'], <PatientsList />)} />
     <Route path="/clinician/patients/:id" element={rolePage(['clinician'], <PatientDetail />)} />

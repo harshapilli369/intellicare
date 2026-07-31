@@ -1,89 +1,117 @@
-import { useAuth } from "../../context/AuthContext";
-import NavBar from "../NavBar";
+import { useEffect, useState } from 'react';
+import { toast } from 'react-toastify';
+
+import { useAuth } from '../../context/AuthContext';
+import api from '../../services/api';
+
+const formatWhen = (value) =>
+  value
+    ? new Date(value).toLocaleString('en-CA', {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      })
+    : null;
+
+const Stat = ({ label, value }) => (
+  <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <p className="text-sm text-slate-600">{label}</p>
+    <p className="mt-1 text-2xl font-bold text-brand">{value}</p>
+  </div>
+);
 
 const PatientDashboard = () => {
   const { user } = useAuth();
 
-  let num_summaries = 0;
+  const [appointments, setAppointments] = useState([]);
+  const [summaries, setSummaries] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    // The appointment list is already scoped to the signed-in patient, and it
+    // is also what tells us which patient record is theirs: the account id and
+    // the patient id are not the same number.
+    api
+      .get('/appointments')
+      .then(async ({ data }) => {
+        if (cancelled) return;
+        setAppointments(data.appointments);
+
+        const patientId = data.appointments[0]?.patientId;
+        if (!patientId) return;
+
+        const { data: ai } = await api.get(`/ai/patient/${patientId}/summaries`);
+        if (!cancelled) setSummaries(ai.summaries);
+      })
+      .catch(() => {
+        if (!cancelled) toast.error('Could not load your dashboard');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const now = Date.now();
+  const upcoming = appointments
+    .filter((a) => a.status === 'scheduled' && new Date(a.scheduledAt).getTime() > now)
+    .sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt));
+  const past = appointments.filter((a) => a.status === 'completed');
+  const [next] = upcoming;
+
+  if (loading) return <p className="text-sm text-slate-500">Loading your dashboard...</p>;
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      <NavBar />
-      {/* Main Content */}
-      <main className="flex-1 p-8">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">
-              Welcome, {user?.name || "Patient"}
-            </h1>
-            <p className="text-slate-600 mt-1">
-              Your health information at a glance.
-            </p>
-          </div>
+    <div>
+      <h1 className="text-2xl font-bold text-slate-900">Welcome, {user?.name || 'Patient'}</h1>
+      <p className="mt-1 text-slate-600">Your health information at a glance.</p>
 
-          <input
-            type="text"
-            placeholder="Search..."
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm w-64"
-          />
-        </div>
+      <div className="mt-8 grid gap-4 sm:grid-cols-3">
+        <Stat label="Upcoming appointments" value={upcoming.length} />
+        <Stat label="Past visits" value={past.length} />
+        <Stat label="Summaries available" value={summaries.length} />
+      </div>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-3 gap-4 mt-8">
-          <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
-            <p className="text-sm text-slate-600">Referrals to act on</p>
-            <p className="text-2xl font-bold text-brand">{user?.referrals || 0}</p>
-          </div>
+      <div className="mt-8 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 className="text-lg font-bold text-slate-900">Upcoming Appointment</h2>
 
-          <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
-            <p className="text-sm text-slate-600">Booked appointments</p>
-            <p className="text-2xl font-bold text-brand">{user?.bookedAppointments || 0}</p>
-          </div>
-
-          <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
-            <p className="text-sm text-slate-600">Prescription refill almost expired</p>
-            <p className="text-2xl font-bold text-brand">{user?.prescriptions || 0}</p>
-          </div>
-        </div>
-
-        {/* Upcoming Appointment */}
-        <div className="mt-8 bg-white p-6 rounded-lg shadow-sm border border-slate-200">
-          <h3 className="text-lg font-bold text-slate-900">Upcoming Appointment</h3>
-
+        {next ? (
           <div className="mt-4">
-            <p className="font-medium text-slate-800">{user.appointment.physicianId?.name || "No Appointments"}</p>
-            <p className="text-slate-600">{user.appointment.reason}</p>
-            <p className="text-slate-600">{user.appointment.startTime}</p>
-
-            <button className="mt-4 px-4 py-2 bg-brand text-white rounded-md text-sm font-medium">
-              View Info
-            </button>
+            <p className="font-medium text-slate-800">{next.clinicianName}</p>
+            <p className="text-slate-600">{next.reason || 'No reason recorded'}</p>
+            <p className="text-slate-600">{formatWhen(next.scheduledAt)}</p>
           </div>
-        </div>
+        ) : (
+          <p className="mt-4 text-sm text-slate-500">You have no upcoming appointments.</p>
+        )}
+      </div>
 
-        {/* Post-Appointment Summary */}
-        <div className="mt-6 bg-green-100 border border-green-300 p-6 rounded-lg">
+      {summaries.length > 0 && (
+        <div className="mt-6 rounded-lg border border-green-300 bg-green-100 p-6">
           <p className="font-medium text-green-800">
-            {user.appointment.numSummaries} post‑appointment summary is waiting for you!
+            {summaries.length} post-appointment{' '}
+            {summaries.length === 1 ? 'summary is' : 'summaries are'} waiting for you.
           </p>
-
-          <button className="mt-3 px-4 py-2 bg-green-600 text-white rounded-md text-sm font-medium">
-            View Report
-          </button>
         </div>
+      )}
 
-        {/* Action Buttons */}
-        <div className="mt-8 flex gap-4">
-          <button className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium">
-            View All Appointment Reports
-          </button>
-
-          <button className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium">
-            Book an Appointment
-          </button>
-        </div>
-      </main>
+      <div className="mt-8">
+        <button
+          type="button"
+          disabled
+          title="Booking arrives with the patient self-service screens"
+          className="btn-solid"
+        >
+          Book an appointment
+        </button>
+      </div>
     </div>
   );
 };
