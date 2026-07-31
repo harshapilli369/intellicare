@@ -10,6 +10,14 @@ body {
   @apply rounded-2xl border border-brand bg-white p-6;
 }
 
+.card-plain {
+  @apply border border-slate-200;
+}
+
 .btn-primary {
   @apply rounded-md bg-brand px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-60;
+}
+
+.btn-outline {
+  @apply rounded-md border border-brand px-4 py-2 text-sm font-medium text-brand transition hover:bg-brand-50 disabled:opacity-60;
 }
