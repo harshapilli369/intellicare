@@ -1,11 +1,15 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
 import AiBadge from '../../components/ai/AiBadge';
 import { getSummary, generatePre, generatePost, finalizeSummary } from '../../services/aiApi';
 
 const AISummaries = () => {
-  const [appointmentId, setAppointmentId] = useState('');
+  const [searchParams] = useSearchParams();
+  const presetId = searchParams.get('appointment') || '';
+
+  const [appointmentId, setAppointmentId] = useState(presetId);
   const [summary, setSummary] = useState(null);
   const [notes, setNotes] = useState('');
   const [clinicianDraft, setClinicianDraft] = useState('');
@@ -18,22 +22,36 @@ const AISummaries = () => {
     setPatientDraft(doc?.patientSummary || '');
   };
 
-  const load = async () => {
-    if (!appointmentId) return;
-    setBusy('load');
-    try {
-      applySummary(await getSummary(appointmentId));
-    } catch (err) {
-      if (err.response?.status === 404) {
-        applySummary(null);
-        toast.info('No summary yet for this appointment. Generate one below.');
-      } else {
-        toast.error('Could not load the summary');
+  const load = useCallback(
+    async (id) => {
+      const target = id || appointmentId;
+      if (!target) return;
+      setBusy('load');
+      try {
+        applySummary(await getSummary(target));
+      } catch (err) {
+        if (err.response?.status === 404) {
+          applySummary(null);
+          toast.info('No summary yet for this appointment. Generate one below.');
+        } else {
+          toast.error('Could not load the summary');
+        }
+      } finally {
+        setBusy(null);
       }
-    } finally {
-      setBusy(null);
-    }
-  };
+    },
+    [appointmentId]
+  );
+
+  // Arriving from a patient record carries the appointment in the URL, so that
+  // visit's summary opens without the clinician retyping its id.
+  useEffect(() => {
+    if (!presetId) return;
+    setAppointmentId(presetId);
+    load(presetId);
+    // Only re-runs when the record hands over a different appointment.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presetId]);
 
   const runPre = async () => {
     setBusy('pre');
@@ -98,7 +116,7 @@ const AISummaries = () => {
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand"
           />
         </label>
-        <button type="button" onClick={load} disabled={!appointmentId || busy} className="btn-primary">
+        <button type="button" onClick={() => load()} disabled={!appointmentId || busy} className="btn-primary">
           {busy === 'load' ? 'Loading...' : 'Load'}
         </button>
       </div>
