@@ -177,11 +177,16 @@ describe('Appointments', () => {
         )
       );
 
+      const statuses = attempts.map((attempt) => attempt.status);
       const created = attempts.filter((attempt) => attempt.status === 201);
       const refused = attempts.filter((attempt) => attempt.status === 409);
 
-      assert.equal(created.length, 1, 'exactly one booking succeeds');
-      assert.equal(refused.length, 7, 'the rest are refused as already booked');
+      assert.equal(created.length, 1, `exactly one booking succeeds, got ${statuses.join()}`);
+      assert.equal(
+        refused.length,
+        7,
+        `the rest are refused as already booked, got ${statuses.join()}`
+      );
 
       await patch(`/appointments/${created[0].json.appointment.id}/cancel`, admin.token);
     });
