@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
 import AppointmentNotes from '../../components/notes/AppointmentNotes';
+import PrescribeDialog from '../../components/prescriptions/PrescribeDialog';
 import PatientInfoCard from '../../components/patients/PatientInfoCard';
 import PreviousAppointments from '../../components/patients/PreviousAppointments';
 import { useAuth } from '../../context/AuthContext';
@@ -34,6 +35,7 @@ const PatientDetail = () => {
   const [loading, setLoading] = useState(true);
   // The appointment whose notes are open, if any.
   const [notesFor, setNotesFor] = useState(null);
+  const [prescribing, setPrescribing] = useState(false);
 
   const isClinician = user?.role === 'clinician';
   const base = user?.role === 'admin' ? '/admin' : '/clinician';
@@ -67,9 +69,7 @@ const PatientDetail = () => {
   // The API returns visits newest first, so the most recent one is the head.
   const appointments = patient.appointments || [];
   const [lastAppointment] = appointments;
-  const medications = (patient.prescriptions || []).map((prescription) =>
-    [prescription.medication, prescription.dosage].filter(Boolean).join(' ')
-  );
+  const prescriptions = patient.prescriptions || [];
 
   // The summary screen is where a brief is generated and reviewed; the record
   // hands it the appointment rather than making the clinician retype an id.
@@ -86,11 +86,50 @@ const PatientDetail = () => {
         <div>
           <PatientInfoCard patient={patient} lastAppointment={lastAppointment} />
 
-          <Section
-            title="Medications & Prescriptions"
-            items={medications}
-            empty="No medications on record."
-          />
+          <h2 className="mt-10 text-[1.75rem] leading-tight">Medications &amp; Prescriptions</h2>
+          {prescriptions.length === 0 ? (
+            <p className="mt-4 text-sm text-slate-500">No medications on record.</p>
+          ) : (
+            <ul className="mt-4 space-y-3">
+              {prescriptions.map((prescription) => (
+                <li
+                  key={prescription.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3"
+                >
+                  <div>
+                    <p className="text-base text-slate-900">
+                      {[prescription.medication, prescription.dosage].filter(Boolean).join(' ')}
+                      {!prescription.current && (
+                        <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-600">
+                          Finished
+                        </span>
+                      )}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {[prescription.frequency, prescription.duration].filter(Boolean).join(' · ') ||
+                        'No usage recorded'}
+                    </p>
+                  </div>
+                  <Link
+                    to={`/prescriptions/${prescription.id}/print`}
+                    className="text-sm text-brand hover:underline"
+                  >
+                    Print
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {isClinician && (
+            <button
+              type="button"
+              onClick={() => setPrescribing(true)}
+              className="btn-outline mt-4"
+            >
+              Prescribe medication
+            </button>
+          )}
           <Section
             title="Medical History"
             items={patient.medicalHistory}
@@ -137,6 +176,16 @@ const PatientDetail = () => {
           appointment={notesFor}
           patientName={patient.name}
           onClose={() => setNotesFor(null)}
+        />
+      )}
+
+      {prescribing && (
+        <PrescribeDialog
+          patient={patient}
+          appointmentId={lastAppointment?.id}
+          onClose={() => setPrescribing(false)}
+          // Re-read the record so the new medication appears in the list.
+          onIssued={() => getPatient(id).then(setPatient)}
         />
       )}
     </div>

@@ -148,6 +148,59 @@ describe('Prescriptions', () => {
     });
   });
 
+  describe('the printable copy', () => {
+    let issued;
+
+    before(async () => {
+      issued = (
+        await post('/prescriptions', clinician.token, {
+          patientId: eliasId,
+          medication: 'Metformin',
+          dosage: '500mg',
+          frequency: 'twice daily',
+          duration: '90 days',
+        })
+      ).json.prescription;
+    });
+
+    it('carries everything a printed sheet shows', async () => {
+      const { status, json } = await get(`/prescriptions/${issued.id}`, clinician.token);
+
+      assert.equal(status, 200);
+      assert.equal(json.prescription.patientName, 'Elias Tobias', 'who it is for');
+      assert.equal(json.prescription.clinicianName, 'Mariam Kuteishi', 'who wrote it');
+      assert.equal(json.prescription.medication, 'Metformin');
+      assert.ok(json.prescription.issuedOn, 'when it was issued');
+      assert.ok(json.prescription.runsOutOn, 'and when it runs out');
+    });
+
+    it('can be printed by the patient it belongs to', async () => {
+      assert.equal((await get(`/prescriptions/${issued.id}`, patient.token)).status, 200);
+    });
+
+    it("cannot be printed by a different patient", async () => {
+      const theirs = (
+        await post('/prescriptions', clinician.token, {
+          patientId: otherId,
+          medication: 'Ibuprofen',
+          duration: '5 days',
+        })
+      ).json.prescription;
+
+      assert.equal((await get(`/prescriptions/${theirs.id}`, patient.token)).status, 403);
+    });
+
+    it('answers 404 for one that does not exist and 400 for a malformed id', async () => {
+      assert.equal((await get('/prescriptions/999999', clinician.token)).status, 404);
+      assert.equal((await get('/prescriptions/abc', clinician.token)).status, 400);
+    });
+
+    it('does not swallow the formulary or the patient list paths', async () => {
+      assert.equal((await get('/prescriptions/formulary', clinician.token)).status, 200);
+      assert.equal((await get(`/prescriptions/patient/${eliasId}`, clinician.token)).status, 200);
+    });
+  });
+
   describe('reading a medication list', () => {
     it('appears on the patient record, which is the acceptance criterion', async () => {
       const before = (await get(`/patients/${eliasId}`, clinician.token)).json.patient.prescriptions

@@ -1,4 +1,5 @@
 const { Appointment, Patient, Prescription, User } = require('../models/mysql');
+const { patientProfileFor } = require('../middleware/ownership');
 const { MEDICATIONS, findMedication, runsOutOn, isCurrent } = require('../services/prescriptions');
 
 const shape = (prescription) => ({
@@ -72,6 +73,34 @@ const create = async (req, res, next) => {
   }
 };
 
+// One prescription, for the printable copy. Staff read any; a patient reads
+// only their own.
+const getById = async (req, res, next) => {
+  try {
+    const prescription = await Prescription.findByPk(req.params.id, {
+      include: [
+        { model: User, as: 'clinician', attributes: ['name'] },
+        { model: Patient, include: { model: User, attributes: ['name'] } },
+      ],
+    });
+    if (!prescription) return res.status(404).json({ message: 'Prescription not found' });
+
+    if (req.user.role === 'patient') {
+      const profile = await patientProfileFor(req.user);
+      if (!profile || profile.id !== prescription.patientId) {
+        return res.status(403).json({ message: 'Forbidden' });
+      }
+    }
+
+    res.json({
+      success: true,
+      prescription: { ...shape(prescription), patientName: prescription.Patient?.User?.name },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // A patient's medication list, newest first, split into what they are taking now
 // and what has finished.
 const listForPatient = async (req, res, next) => {
@@ -95,4 +124,4 @@ const listForPatient = async (req, res, next) => {
   }
 };
 
-module.exports = { formulary, create, listForPatient };
+module.exports = { formulary, create, getById, listForPatient };

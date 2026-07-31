@@ -45,4 +45,13 @@ router.get(
   prescriptionController.listForPatient
 );
 
+// Last, so neither "formulary" nor "patient" is read as an id.
+router.get(
+  '/:id',
+  authorize('clinician', 'admin', 'patient'),
+  param('id').isInt({ min: 1 }).toInt(),
+  validate,
+  prescriptionController.getById
+);
+
 module.exports = router;
