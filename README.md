@@ -117,11 +117,26 @@ Copy the example file and fill in your values:
 cp backend/.env.example backend/.env
 ```
 
+### A local MySQL, if you don't have one
+
+`backend/docker-compose.dev.yml` builds one from the values already in your
+`.env`, so both sides stay in step:
+
+```bash
+docker compose -f backend/docker-compose.dev.yml up -d
+```
+
+It publishes on port **3307**, not 3306, because a locally installed MySQL
+usually holds 3306 already and binding a port that is taken makes the container
+fail to start. If 3307 is busy as well, change `MYSQL_PORT` in `.env` and bring
+it up again.
+
 | Variable | Description |
 |----------|-------------|
 | `PORT` | Backend port (default 5000) |
 | `JWT_SECRET` | Secret key for signing JWTs |
 | `MYSQL_HOST` | MySQL host |
+| `MYSQL_PORT` | MySQL port (3307 with the bundled Docker database) |
 | `MYSQL_USER` | MySQL username |
 | `MYSQL_PASSWORD` | MySQL password |
 | `MYSQL_DATABASE` | MySQL database name |
