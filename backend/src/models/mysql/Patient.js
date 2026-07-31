@@ -17,6 +17,8 @@ module.exports = (sequelize) =>
         allowNull: true,
       },
       address: { type: DataTypes.STRING, allowNull: true },
+      // The provincial health number a patient is identified by at reception.
+      healthCardNumber: { type: DataTypes.STRING, allowNull: true },
       // Variable-length lists kept as JSON columns rather than separate tables,
       // since they are read as a whole with the patient and never queried on
       // their own.
