@@ -107,6 +107,9 @@ const importPatients = async (rows) => {
   }).then((users) => new Set(users.map((u) => u.email.toLowerCase())));
 
   const results = [];
+  // Invitations to send once every row has been dealt with, so mail never sits
+  // between one patient being created and the next.
+  const pending = [];
 
   for (let i = 0; i < rows.length; i += 1) {
     const line = i + 1; // 1-based, counts data rows only (header excluded)
@@ -170,11 +173,7 @@ const importPatients = async (rows) => {
 
       await transaction.commit();
 
-      // Only after the row is committed - mail cannot be recalled if the
-      // transaction then rolls back.
-      const delivery = invitation ? await invitationService.send(user, invitation) : null;
-
-      results.push({
+      const record = {
         line,
         email: user.email,
         status: 'inserted',
@@ -183,9 +182,16 @@ const importPatients = async (rows) => {
         // configured. It is not something to write down: the patient record
         // will issue a fresh one whenever it is asked.
         invitation: invitation
-          ? { link: invitation.link, expiresAt: invitation.expiresAt, delivery }
+          ? { link: invitation.link, expiresAt: invitation.expiresAt, delivery: null }
           : null,
-      });
+      };
+      results.push(record);
+
+      // Queued rather than sent here. Mail is only attempted once the row is
+      // committed, since a message cannot be recalled if the transaction then
+      // rolls back - and sending them one after another would make a file of
+      // fifty patients wait fifty timeouts if the host blocks outbound SMTP.
+      if (invitation) pending.push({ record, user, invitation });
     } catch (err) {
       if (!transaction.finished) await transaction.rollback();
       results.push({
@@ -196,6 +202,15 @@ const importPatients = async (rows) => {
       });
     }
   }
+
+  // Every invitation goes out at once, so the whole file costs one round trip
+  // rather than one per patient. Settled rather than all, because one
+  // unreachable address must not lose the report for everybody else.
+  await Promise.allSettled(
+    pending.map(async ({ record, user, invitation }) => {
+      record.invitation.delivery = await invitationService.send(user, invitation);
+    })
+  );
 
   const inserted = results.filter((r) => r.status === 'inserted').length;
   return {

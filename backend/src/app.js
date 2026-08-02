@@ -23,6 +23,16 @@ const reminderJob = require('./jobs/reminderJob');
 
 const app = express();
 
+// Deployed behind a host's load balancer, so the socket's address is the
+// proxy's and every caller looks like the same one. Without this the rate
+// limiters key everything on that single address: one person fumbling their
+// password ten times would lock out the whole clinic, and a real attacker
+// would be indistinguishable from everybody else.
+//
+// One hop - the platform's own proxy. Trusting the whole chain would let a
+// caller set X-Forwarded-For themselves and pick their own rate limit bucket.
+app.set('trust proxy', 1);
+
 // This process serves JSON and file downloads, never a page. Nothing it returns
 // should ever be allowed to load a script, a stylesheet or a frame, so the
 // policy denies every source outright rather than relying on the defaults being
