@@ -6,6 +6,7 @@ import AppointmentNotes from '../../components/notes/AppointmentNotes';
 import PrescribeDialog from '../../components/prescriptions/PrescribeDialog';
 import EditPatientDialog from '../../components/patients/EditPatientDialog';
 import ExportMenu from '../../components/patients/ExportMenu';
+import InviteButton from '../../components/patients/InviteButton';
 import PatientInfoCard from '../../components/patients/PatientInfoCard';
 import PreviousAppointments from '../../components/patients/PreviousAppointments';
 import { useAuth } from '../../context/AuthContext';
@@ -87,11 +88,15 @@ const PatientDetail = () => {
         </Link>
         <div className="flex items-center gap-3">
           <ExportMenu patientId={id} canExportPdf />
-          {/* Correcting demographics is the administrative assistant's job. */}
+          {/* Correcting demographics, and getting a patient into their own
+              account, are both the administrative assistant's job. */}
           {user?.role === 'admin' && (
-            <button type="button" onClick={() => setEditing(true)} className="btn-outline">
-              Edit details
-            </button>
+            <>
+              <InviteButton patientId={id} />
+              <button type="button" onClick={() => setEditing(true)} className="btn-outline">
+                Edit details
+              </button>
+            </>
           )}
         </div>
       </div>

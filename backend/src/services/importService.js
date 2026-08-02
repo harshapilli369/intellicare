@@ -4,6 +4,7 @@ const { parse } = require('csv-parse/sync');
 
 const { sequelize } = require('../config/mysql');
 const { User, Patient } = require('../models/mysql');
+const invitationService = require('./invitationService');
 
 const VALID_SEX = ['Male', 'Female', 'Other'];
 
@@ -84,10 +85,11 @@ const validateRow = (row) => {
   return errors;
 };
 
-// A password the admin never has to invent by hand for a bulk file. Only
-// returned to the caller for rows that did not supply their own, so it can be
-// handed to the patient out of band.
-const generatePassword = () => crypto.randomBytes(9).toString('base64url');
+// A row that brings no password of its own gets an unusable one, and an
+// invitation to choose a real one. Nothing here is ever shown to the admin or
+// written down: the account cannot be signed into until the patient sets a
+// password through their link, which is the point.
+const unusablePassword = () => crypto.randomBytes(32).toString('base64url');
 
 // Imports a parsed list of rows. Every row is validated first so line numbers
 // in the report line up with the source file regardless of what fails later;
@@ -130,7 +132,12 @@ const importPatients = async (rows) => {
       continue;
     }
 
-    const password = row.password || generatePassword();
+    // A file may carry its own password, in which case the patient already has
+    // one and needs no invitation. Otherwise the account is left unusable until
+    // they set one themselves.
+    const invited = !row.password;
+    const password = row.password || unusablePassword();
+
     const transaction = await sequelize.transaction();
     try {
       const user = await User.create(
@@ -157,16 +164,27 @@ const importPatients = async (rows) => {
         { transaction }
       );
 
+      // Issued inside the transaction, so a patient is never left created
+      // without the means to get in.
+      const invitation = invited ? await invitationService.issue(user.id, { transaction }) : null;
+
       await transaction.commit();
+
+      // Only after the row is committed - mail cannot be recalled if the
+      // transaction then rolls back.
+      const delivery = invitation ? await invitationService.send(user, invitation) : null;
 
       results.push({
         line,
         email: user.email,
         status: 'inserted',
         patientId: patient.id,
-        // Only surfaced when it was generated here, so a password supplied by
-        // the file itself is never echoed back.
-        temporaryPassword: row.password ? undefined : password,
+        // The link is shown so an admin can pass it on where mail is not
+        // configured. It is not something to write down: the patient record
+        // will issue a fresh one whenever it is asked.
+        invitation: invitation
+          ? { link: invitation.link, expiresAt: invitation.expiresAt, delivery }
+          : null,
       });
     } catch (err) {
       if (!transaction.finished) await transaction.rollback();

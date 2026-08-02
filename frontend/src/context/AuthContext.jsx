@@ -42,13 +42,18 @@ export const AuthProvider = ({ children }) => {
     return data.user;
   };
 
+  // Takes up a session that was established somewhere other than the sign-in
+  // form - redeeming an invitation, which ends with the account signed in. The
+  // token is already stored by then; this is what tells the rest of the app.
+  const adopt = (account) => setUser(account);
+
   const logout = () => {
     localStorage.removeItem('token');
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, adopt }}>
       {children}
     </AuthContext.Provider>
   );

@@ -6,6 +6,7 @@ import AppLayout from './components/layout/AppLayout';
 
 import Login from './pages/auth/Login';
 import SignUp from './pages/auth/SignUp';
+import AcceptInvitation from './pages/auth/AcceptInvitation';
 import LaunchPage from './pages/LaunchPage';
 import ClinicianDashboard from './pages/clinician/Dashboard';
 import ClinicianSchedule from './pages/clinician/Schedule';
@@ -42,6 +43,9 @@ const App = () => (
   <Routes>
     <Route path="/login" element={<Login />} />
     <Route path="/signup" element={<SignUp />} />
+    {/* Public by necessity: an invited patient has no password yet, so this is
+        the one screen they can reach before having an account they can use. */}
+    <Route path="/invite/:token" element={<AcceptInvitation />} />
     <Route path="/clinician" element={rolePage(['clinician'], <ClinicianDashboard />)} />
     <Route path="/clinician/patients" element={rolePage(['clinician'], <PatientsList />)} />
     <Route path="/clinician/patients/:id" element={rolePage(['clinician'], <PatientDetail />)} />

@@ -106,4 +106,15 @@ router.post(
   patientController.importPatients
 );
 
+// Issues a fresh invitation for a patient who has not set a password yet, or
+// whose link has expired or gone astray. This is what makes an import report
+// something nobody has to copy down: the link can always be had again.
+router.post(
+  '/:id/invitation',
+  authorize('admin'),
+  patientId,
+  validate,
+  patientController.invitePatient
+);
+
 module.exports = router;

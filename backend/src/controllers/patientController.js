@@ -6,6 +6,7 @@ const { User, Patient, Appointment, Prescription } = require('../models/mysql');
 const AuditLog = require('../models/mongodb/AuditLog');
 const exportService = require('../services/exportService');
 const importService = require('../services/importService');
+const invitationService = require('../services/invitationService');
 
 // The account columns a patient record is allowed to expose. Never includes the
 // password hash.
@@ -342,4 +343,43 @@ const importPatients = async (req, res, next) => {
   }
 };
 
-module.exports = { list, getById, create, update, remove, exportChart, importPatients };
+// Issues a patient a fresh invitation to set their password, and emails it.
+// Any earlier unredeemed invitation stops working, so a link that has gone
+// astray cannot be used by whoever ended up with it.
+const invitePatient = async (req, res, next) => {
+  try {
+    const patient = await Patient.findByPk(req.params.id, {
+      include: [{ model: User, attributes: ['id', 'name', 'email'] }],
+    });
+    if (!patient || !patient.User) return res.status(404).json({ message: 'Patient not found' });
+
+    const invitation = await invitationService.issue(patient.User.id);
+    const delivery = await invitationService.send(patient.User, invitation);
+
+    await AuditLog.create({
+      action: 'invite',
+      patientId: patient.id,
+      performedBy: req.user.id,
+      performedByRole: req.user.role,
+      detail: { delivery, expiresAt: invitation.expiresAt },
+    });
+
+    res.json({
+      success: true,
+      invitation: { link: invitation.link, expiresAt: invitation.expiresAt, delivery },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = {
+  list,
+  getById,
+  create,
+  update,
+  remove,
+  exportChart,
+  importPatients,
+  invitePatient,
+};

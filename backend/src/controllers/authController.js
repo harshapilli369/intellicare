@@ -1,6 +1,8 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { User } = require('../models/mysql');
+const { sequelize } = require('../config/mysql');
+const invitationService = require('../services/invitationService');
 
 const signToken = (user) =>
   jwt.sign({ id: user.id, role: user.role, name: user.name }, process.env.JWT_SECRET, {
@@ -82,6 +84,49 @@ const login = async (req, res, next) => {
   }
 };
 
+// Says whether a link from an invitation email is still good, and who it is
+// for, so the page can greet the patient by name before asking for a password.
+//
+// A spent, expired, or invented token is all one answer. Distinguishing them
+// would tell a caller feeding in guesses which ones had once been real.
+const checkInvitation = async (req, res, next) => {
+  try {
+    const invitation = await invitationService.findLive(req.params.token);
+    if (!invitation) {
+      return res.status(404).json({ message: 'This invitation is no longer valid' });
+    }
+
+    res.json({
+      success: true,
+      invitation: { name: invitation.User.name, email: invitation.User.email },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Spends an invitation to set the account's first password, and signs the
+// patient straight in - having just proved they hold the link, asking them to
+// type the password again on a login screen adds nothing.
+const acceptInvitation = async (req, res, next) => {
+  try {
+    const invitation = await invitationService.findLive(req.params.token);
+    if (!invitation) {
+      return res.status(404).json({ message: 'This invitation is no longer valid' });
+    }
+
+    const done = await invitationService.redeem(invitation, req.body.password, { sequelize });
+    if (!done) {
+      return res.status(409).json({ message: 'This invitation has already been used' });
+    }
+
+    const user = await User.findByPk(invitation.userId);
+    res.json({ success: true, token: signToken(user), user: publicUser(user) });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // Returns the account behind the current token, so the frontend can restore the
 // signed-in user without keeping identity in the token alone.
 const me = async (req, res, next) => {
@@ -94,4 +139,4 @@ const me = async (req, res, next) => {
   }
 };
 
-module.exports = { register, createStaff, login, me };
+module.exports = { register, createStaff, login, me, checkInvitation, acceptInvitation };
