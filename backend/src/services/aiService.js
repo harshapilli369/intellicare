@@ -12,6 +12,11 @@ The brief should highlight:
 - New information submitted by the patient since the last encounter
 - Any allergies or relevant risk factors
 
+Where "patientIntake" is present it is what the patient reported themselves
+before the visit, in their own words. Attribute it to them rather than stating
+it as established fact, and do not treat its absence as meaning nothing has
+changed.
+
 Keep the tone clinical and concise. Use bullet points. Maximum 300 words.
 
 Patient Information:
