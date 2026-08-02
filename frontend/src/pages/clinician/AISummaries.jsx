@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
@@ -38,14 +38,27 @@ const AISummaries = () => {
     setPatientDraft(doc?.patientSummary || '');
   };
 
+  // Which read the screen is waiting on. Two visits chosen in quick succession
+  // leave two requests in flight, and the slower one must not be allowed to land
+  // second and put its summary under the other patient's name.
+  const latestRead = useRef(0);
+
   const load = useCallback(
     async (id) => {
       const target = id || appointmentId;
       if (!target) return;
+
+      latestRead.current += 1;
+      const ticket = latestRead.current;
+      const stale = () => ticket !== latestRead.current;
+
       setBusy('load');
       try {
-        applySummary(await getSummary(target));
+        const doc = await getSummary(target);
+        if (stale()) return;
+        applySummary(doc);
       } catch (err) {
+        if (stale()) return;
         if (err.response?.status === 404) {
           applySummary(null);
           toast.info('No summary yet for this appointment. Generate one below.');
@@ -53,11 +66,22 @@ const AISummaries = () => {
           toast.error('Could not load the summary');
         }
       } finally {
-        setBusy(null);
+        if (!stale()) setBusy(null);
       }
     },
     [appointmentId]
   );
+
+  // Everything on this screen belongs to one visit, so moving to another has to
+  // leave nothing of the last one behind. The encounter notes matter most: they
+  // are what the summaries are generated from, and text typed about one patient
+  // must never become the basis of another patient's record.
+  const selectAppointment = (id) => {
+    setAppointmentId(id);
+    setNotes('');
+    applySummary(null);
+    if (id) load(id);
+  };
 
   // The clinician's own visits, so a summary can be chosen by patient and time
   // rather than by an id nobody knows.
@@ -101,10 +125,12 @@ const AISummaries = () => {
     };
   }, [appointmentId]);
 
+  // Arriving from a patient record or the schedule names the visit in the URL.
+  // That is a change of visit like any other, so it clears the screen too - a
+  // clinician who had started typing about someone else does not carry it over.
   useEffect(() => {
     if (!presetId) return;
-    setAppointmentId(presetId);
-    load(presetId);
+    selectAppointment(presetId);
     // Only re-runs when another screen hands over a different appointment.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [presetId]);
@@ -166,11 +192,7 @@ const AISummaries = () => {
           <span className="text-sm font-medium text-slate-700">Appointment</span>
           <select
             value={appointmentId}
-            onChange={(event) => {
-              setAppointmentId(event.target.value);
-              setSummary(null);
-              if (event.target.value) load(event.target.value);
-            }}
+            onChange={(event) => selectAppointment(event.target.value)}
             disabled={busy === 'load'}
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand"
           >
