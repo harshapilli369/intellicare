@@ -81,6 +81,24 @@ router.put(
   patientController.update
 );
 
+// How the clinic reaches a patient, corrected by the patient themselves. A
+// separate route from the one above on purpose: that one accepts clinical and
+// identifying fields and is an administrator's, this one accepts two contact
+// fields and nothing else. Keeping them apart means a patient cannot reach the
+// wider handler at all, rather than reaching it and being filtered.
+router.put(
+  '/:id/contact-details',
+  authorize('patient'),
+  [
+    patientId,
+    body('phone').optional({ nullable: true }).isString().trim().isLength({ max: 40 }),
+    body('address').optional({ nullable: true }).isString().trim().isLength({ max: 255 }),
+  ],
+  validate,
+  requireOwnPatient('id'),
+  patientController.updateOwnDetails
+);
+
 router.delete('/:id', authorize('admin'), patientId, validate, patientController.remove);
 
 // A patient's own chart, or (staff) any patient's — the ownership check draws
