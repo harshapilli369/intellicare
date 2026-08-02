@@ -70,6 +70,13 @@ services:
       #
       # For Gmail, SMTP_PASS is an App Password from a Google account with
       # two-factor authentication on - never the account's own password.
+      #
+      # NOTE: Render's free instances block outbound SMTP. The connection is not
+      # refused, it is swallowed, so a send sits until it times out - the logs
+      # read "Connection timeout" rather than anything about credentials. Mail
+      # from this plan therefore needs a provider reached over HTTPS (Resend,
+      # SendGrid, Brevo) rather than SMTP on 587. These variables are kept for a
+      # paid instance or a host that permits it.
       - key: SMTP_HOST
         sync: false
       - key: SMTP_PORT
