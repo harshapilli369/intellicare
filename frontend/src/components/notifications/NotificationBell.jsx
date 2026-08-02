@@ -127,7 +127,13 @@ const NotificationBell = () => {
                     }`}
                   >
                     <p className="text-sm font-medium text-slate-900">{notification.title}</p>
-                    <p className="mt-0.5 text-xs text-slate-500">
+                    {/* The heading names the patient or the change; the body is
+                        where the date and time live, which is the part worth
+                        being told. */}
+                    {notification.body && (
+                      <p className="mt-0.5 text-sm text-slate-600">{notification.body}</p>
+                    )}
+                    <p className="mt-1 text-xs text-slate-500">
                       {relativeTime(notification.createdAt)}
                     </p>
                   </button>

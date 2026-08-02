@@ -4,6 +4,7 @@ const { Appointment, Patient, User } = require('../models/mysql');
 const ReminderDispatch = require('../models/mongodb/ReminderDispatch');
 const { sendMail } = require('./emailService');
 const { notify } = require('./notificationService');
+const { formatWhen } = require('../utils/datetime');
 
 // How far ahead of a visit each reminder goes out, largest first so a patient
 // booking inside the shorter horizon still gets that reminder and not the one
@@ -14,15 +15,6 @@ const offsets = () =>
     .map((value) => Number(value.trim()))
     .filter((value) => Number.isFinite(value) && value > 0)
     .sort((a, b) => b - a);
-
-const formatWhen = (value) =>
-  new Date(value).toLocaleString('en-CA', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
 
 const messageFor = (appointment, offsetHours) => {
   const when = formatWhen(appointment.scheduledAt);
