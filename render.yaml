@@ -33,16 +33,10 @@ services:
       - key: CLIENT_URL
         sync: false
 
-      # MySQL on Railway, over its public proxy.
-      - key: MYSQL_HOST
-        sync: false
-      - key: MYSQL_PORT
-        sync: false
-      - key: MYSQL_USER
-        sync: false
-      - key: MYSQL_PASSWORD
-        sync: false
-      - key: MYSQL_DATABASE
+      # MySQL on Railway, over its public proxy. Paste Railway's
+      # MYSQL_PUBLIC_URL whole rather than retyping the parts: one string is far
+      # harder to get wrong, and a mistyped password reads as "access denied".
+      - key: MYSQL_URL
         sync: false
 
       # MongoDB on Atlas.
