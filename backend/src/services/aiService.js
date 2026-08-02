@@ -1,5 +1,8 @@
+const { Op } = require('sequelize');
+
 const { getModel } = require('../config/gemini');
 const AISummary = require('../models/mongodb/AISummary');
+const { Appointment, User } = require('../models/mysql');
 
 const PRE_APPOINTMENT_PROMPT = (context) => `
 You are a clinical decision support assistant. Based on the patient information below,
@@ -155,8 +158,47 @@ const getSummaryByAppointment = async (appointmentId) => {
   return AISummary.findOne({ appointmentId });
 };
 
+// A patient's released summaries, each carrying the visit it describes.
+//
+// The summary knows only which appointment it belongs to, and appointments live
+// in the relational database, so the two are put together here. Without it a
+// reader is left with the date the summary was written - which is when the
+// clinician got round to it, not when they were seen - and no way to tell one
+// report from another.
 const getPatientSummaries = async (patientId) => {
-  return AISummary.find({ patientId, finalized: true }).sort({ createdAt: -1 });
+  const summaries = await AISummary.find({ patientId, finalized: true }).sort({ createdAt: -1 });
+  if (summaries.length === 0) return [];
+
+  const appointments = await Appointment.findAll({
+    where: { id: { [Op.in]: summaries.map((s) => s.appointmentId) } },
+    include: [{ model: User, as: 'clinician', attributes: ['name'] }],
+  });
+
+  const byId = new Map(appointments.map((a) => [a.id, a]));
+
+  const joined = summaries.map((summary) => {
+    const visit = byId.get(summary.appointmentId);
+
+    return {
+      // Spread the stored document rather than the mongoose model, so what the
+      // frontend receives is the same shape it was before plus the visit.
+      ...summary.toObject(),
+      appointment: visit
+        ? {
+            scheduledAt: visit.scheduledAt,
+            reason: visit.reason,
+            clinicianName: visit.clinician?.name || null,
+          }
+        : null,
+    };
+  });
+
+  // Ordered by the visit, now that the visit is what each report is headed
+  // with. Sorting by when the summary was written would put a report of an old
+  // appointment above a recent one purely because it was finalized later.
+  // A summary whose appointment has gone falls back to its own date.
+  const when = (entry) => new Date(entry.appointment?.scheduledAt || entry.createdAt).getTime();
+  return joined.sort((a, b) => when(b) - when(a));
 };
 
 module.exports = {

@@ -13,6 +13,31 @@ const formatDate = (value) =>
     day: 'numeric',
   });
 
+// What the report is about: the visit it describes, who was seen, and what for.
+// The date a summary was written is not the date of the appointment - a
+// clinician may finalize weeks later - so the visit's own date leads.
+const Heading = ({ appointment, writtenAt }) => {
+  if (!appointment) {
+    // The visit is no longer on file. Say what is known rather than nothing.
+    return (
+      <div>
+        <p className="text-sm font-bold text-slate-900">Summary of a past visit</p>
+        <p className="mt-0.5 text-xs text-slate-500">Written {formatDate(writtenAt)}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <p className="text-sm font-bold text-slate-900">{formatDate(appointment.scheduledAt)}</p>
+      <p className="mt-0.5 text-xs text-slate-600">
+        {[appointment.reason, appointment.clinicianName].filter(Boolean).join(' · ') ||
+          'Appointment'}
+      </p>
+    </div>
+  );
+};
+
 // The plain-language summaries a clinician has released. Drafts never appear
 // here; the backend only returns finalized ones.
 const PatientSummaries = () => {
@@ -61,8 +86,8 @@ const PatientSummaries = () => {
         <ul className="mt-6 space-y-5">
           {summaries.map((summary) => (
             <li key={summary._id} className="card">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm font-bold text-slate-900">{formatDate(summary.createdAt)}</p>
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <Heading appointment={summary.appointment} writtenAt={summary.createdAt} />
                 <AiBadge />
               </div>
               <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-800">
