@@ -130,10 +130,21 @@ const generatePostSummary = async ({ patientId, appointmentId, context }) => {
   return { clinicianSummary, patientSummary, cached: false };
 };
 
+// Only the two pieces of text a clinician may rewrite before releasing a
+// summary. Spreading the request body in here would let a caller set any field
+// on the document - reassigning it to another patient, who would then be shown
+// it - so the fields are named rather than trusted.
+const EDITABLE_ON_FINALIZE = ['clinicianSummary', 'patientSummary'];
+
 const finalizeSummary = async (appointmentId, edits = {}) => {
+  const accepted = {};
+  EDITABLE_ON_FINALIZE.forEach((field) => {
+    if (typeof edits[field] === 'string') accepted[field] = edits[field];
+  });
+
   const summary = await AISummary.findOneAndUpdate(
     { appointmentId },
-    { ...edits, finalized: true },
+    { ...accepted, finalized: true },
     { new: true }
   );
   if (!summary) throw new Error('Summary not found');
