@@ -23,9 +23,40 @@ const reminderJob = require('./jobs/reminderJob');
 
 const app = express();
 
-app.use(helmet());
+// This process serves JSON and file downloads, never a page. Nothing it returns
+// should ever be allowed to load a script, a stylesheet or a frame, so the
+// policy denies every source outright rather than relying on the defaults being
+// tight enough. `frame-ancestors 'none'` also keeps a response from being
+// framed by another site.
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      useDefaults: false,
+      directives: {
+        'default-src': ["'none'"],
+        'frame-ancestors': ["'none'"],
+        'base-uri': ["'none'"],
+        'form-action': ["'none'"],
+      },
+    },
+    // Downloads are served to the browser that asked for them; this keeps a
+    // cross-origin page from reading one it did not request.
+    crossOriginResourcePolicy: { policy: 'same-site' },
+    referrerPolicy: { policy: 'no-referrer' },
+  })
+);
+
 app.use(morgan('dev'));
-app.use(cors({ origin: process.env.CLIENT_URL, credentials: true }));
+
+// Only the configured frontend may call the API with credentials. An absent
+// CLIENT_URL would otherwise make `cors` reflect whatever origin asked, which
+// in a deployment means any site can call this on a signed-in user's behalf.
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL || false,
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 // Blanket limit on the API. Lifted under the loadtest environment, matching the
@@ -55,7 +86,41 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
+// Refuses to start rather than running with a setting that only fails later, or
+// silently weakens something. A missing signing secret would reject every token
+// at request time and look like a login bug; a default one would let anybody
+// mint a token for any role.
+const checkConfiguration = () => {
+  const problems = [];
+
+  if (!process.env.JWT_SECRET) {
+    problems.push('JWT_SECRET is not set');
+  } else if (process.env.JWT_SECRET.length < 32) {
+    problems.push('JWT_SECRET is shorter than 32 characters');
+  } else if (/^(your_|changeme|secret|test)/i.test(process.env.JWT_SECRET)) {
+    problems.push('JWT_SECRET still looks like the example value');
+  }
+
+  if (process.env.NODE_ENV === 'production' && !process.env.CLIENT_URL) {
+    problems.push('CLIENT_URL is not set, so no browser origin is allowed to call the API');
+  }
+
+  // Not fatal - it is a legitimate way to run the test suite - but it must never
+  // pass unremarked, since it turns the rate limiting off.
+  if (process.env.NODE_ENV === 'loadtest') {
+    console.warn('Running with rate limiting disabled (NODE_ENV=loadtest). Not for deployment.');
+  }
+
+  if (problems.length > 0) {
+    console.error('Refusing to start:');
+    problems.forEach((problem) => console.error(`  - ${problem}`));
+    process.exit(1);
+  }
+};
+
 async function start() {
+  checkConfiguration();
+
   try {
     await connectMySQL();
     await syncModels();
