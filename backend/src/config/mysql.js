@@ -1,4 +1,5 @@
-const { Sequelize } = require('sequelize');
+﻿const { Sequelize } = require('sequelize');
+const logger = require('./logger');
 
 // Relational store for users, patients, appointments, and prescriptions.
 // Clinical notes and AI summaries live in MongoDB instead.
@@ -45,7 +46,7 @@ const sequelize = new Sequelize(database, username, password, {
 
 const connectMySQL = async () => {
   await sequelize.authenticate();
-  console.log(`MySQL connected (${host}:${port}/${database})`);
+  logger.info({ host, port, database }, 'MySQL connected');
 };
 
 module.exports = { sequelize, connectMySQL };
