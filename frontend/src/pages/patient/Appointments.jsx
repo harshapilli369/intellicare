@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
+import IntakeDialog from '../../components/intake/IntakeDialog';
 import {
   cancelAppointment,
   getAvailability,
@@ -46,6 +47,8 @@ const PatientAppointments = () => {
   const [moving, setMoving] = useState(null);
   const [slots, setSlots] = useState([]);
   const [movingDate, setMovingDate] = useState('');
+  // The appointment whose intake form is open, if any.
+  const [intakeFor, setIntakeFor] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -143,7 +146,15 @@ const PatientAppointments = () => {
         </div>
 
         {actionable && (
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
+            {/* Telling the clinic what is wrong before arriving. */}
+            <button
+              type="button"
+              onClick={() => setIntakeFor(appointment)}
+              className="btn-primary"
+            >
+              Intake form
+            </button>
             <button
               type="button"
               onClick={() => startMove(appointment)}
@@ -237,6 +248,14 @@ const PatientAppointments = () => {
             <Card key={appointment.id} appointment={appointment} actionable={false} />
           ))}
         </ul>
+      )}
+
+      {intakeFor && (
+        <IntakeDialog
+          appointment={intakeFor}
+          onClose={() => setIntakeFor(null)}
+          onSubmitted={() => {}}
+        />
       )}
     </div>
   );
