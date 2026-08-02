@@ -12,19 +12,18 @@ const Notification = require('../src/models/mongodb/Notification');
 const ReminderDispatch = require('../src/models/mongodb/ReminderDispatch');
 const { dispatchDue } = require('../src/services/reminderService');
 
-const { SEEDED, get, patch, login, requireRunningApi } = require('./helpers');
+const { SEEDED, get, patch, login, requireRunningApi, silenceMail } = require('./helpers');
 
 describe('In-app notifications', () => {
   let patient;
   let clinician;
   let profile;
   let created = [];
-  let smtpHost;
+  let restoreMail;
 
   before(async () => {
     // The reminder path is driven directly here, so mail stays switched off.
-    smtpHost = process.env.SMTP_HOST;
-    delete process.env.SMTP_HOST;
+    restoreMail = silenceMail();
 
     await requireRunningApi();
     await connectMySQL();
@@ -36,7 +35,7 @@ describe('In-app notifications', () => {
   });
 
   after(async () => {
-    if (smtpHost !== undefined) process.env.SMTP_HOST = smtpHost;
+    restoreMail();
 
     const ids = created.map((appointment) => appointment.id);
     if (ids.length) {

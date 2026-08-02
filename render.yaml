@@ -62,30 +62,24 @@ services:
       - key: NOTE_EDIT_WINDOW_HOURS
         value: 24
 
-      # Outgoing mail. Without these the application still runs: reminders and
-      # invitations report themselves as skipped rather than failing, and an
-      # invitation link can be passed on by hand from the patient's record.
-      # With them, an imported patient is emailed their own link and nobody has
-      # to relay anything.
+      # Outgoing mail, over Brevo's HTTPS API.
       #
-      # For Gmail, SMTP_PASS is an App Password from a Google account with
-      # two-factor authentication on - never the account's own password.
+      # Not SMTP: this plan blocks outbound SMTP, and blocks it by swallowing
+      # the connection rather than refusing it, so a send hangs and then reports
+      # "Connection timeout" however correct the credentials are. The same Gmail
+      # App Password sends in under three seconds from a developer machine.
+      # Nothing blocks port 443, so an HTTP provider is the path that delivers.
       #
-      # NOTE: Render's free instances block outbound SMTP. The connection is not
-      # refused, it is swallowed, so a send sits until it times out - the logs
-      # read "Connection timeout" rather than anything about credentials. Mail
-      # from this plan therefore needs a provider reached over HTTPS (Resend,
-      # SendGrid, Brevo) rather than SMTP on 587. These variables are kept for a
-      # paid instance or a host that permits it.
-      - key: SMTP_HOST
+      # MAIL_FROM must be an address verified in the Brevo account; it refuses
+      # any other sender. Sending to arbitrary recipients additionally needs a
+      # verified sending domain - until then it delivers only to the account
+      # holder's own address.
+      #
+      # Without these the application still runs: mail reports itself as skipped
+      # and an invitation link can be passed on by hand from the patient record.
+      - key: BREVO_API_KEY
         sync: false
-      - key: SMTP_PORT
-        value: 587
-      - key: SMTP_USER
-        sync: false
-      - key: SMTP_PASS
-        sync: false
-      - key: SMTP_FROM
+      - key: MAIL_FROM
         sync: false
 
       # How long an invitation to set a password stays good.

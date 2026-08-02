@@ -65,6 +65,27 @@ const requireRunningApi = async () => {
   if (health.status !== 200) throw new Error(`API at ${BASE} answered ${health.status}, expected 200`);
 };
 
+// Every variable that would let the suite send a real message. Tests that drive
+// the mail path in process switch them all off; naming them in one place means
+// adding a third provider cannot quietly leave the tests posting to it.
+const MAIL_SETTINGS = ['BREVO_API_KEY', 'SMTP_HOST', 'SMTP_USER'];
+
+// Silences outgoing mail and hands back the means to restore it, so a developer
+// with working credentials does not have the suite write to seeded addresses.
+const silenceMail = () => {
+  const saved = {};
+  for (const name of MAIL_SETTINGS) {
+    saved[name] = process.env[name];
+    delete process.env[name];
+  }
+
+  return () => {
+    for (const [name, value] of Object.entries(saved)) {
+      if (value !== undefined) process.env[name] = value;
+    }
+  };
+};
+
 // A unique string per run, so repeated runs never collide on unique columns.
 const unique = (prefix) => `${prefix}.${Date.now()}.${Math.floor(Math.random() * 1e6)}`;
 
@@ -103,6 +124,7 @@ module.exports = {
   del,
   login,
   requireRunningApi,
+  silenceMail,
   unique,
   asDate,
   daysFromNow,
