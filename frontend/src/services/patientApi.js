@@ -42,6 +42,12 @@ export const exportPatient = (id, format) =>
       window.URL.revokeObjectURL(url);
     });
 
+// Issues the patient a fresh invitation to set their password and emails it,
+// retiring any earlier one. Returns the link too, so it can be passed on by
+// hand where mail is not configured.
+export const invitePatient = (id) =>
+  api.post(`/patients/${id}/invitation`).then((r) => r.data.invitation);
+
 // Bulk import from a CSV or JSON file. Returns the per-row report so the
 // caller can show what was inserted and what was rejected, and why.
 export const importPatients = (file) => {

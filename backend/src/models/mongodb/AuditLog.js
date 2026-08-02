@@ -1,12 +1,17 @@
 const mongoose = require('mongoose');
 
-// One row per auditable action against a patient record: an export or a bulk
-// import. Kept in MongoDB alongside the other operational logs (Notification,
-// ReminderDispatch) rather than MySQL, since nothing here is relational and it
-// is only ever queried by who did it or which patient it concerns.
+// One row per auditable action against a patient record: an export, a bulk
+// import, or an invitation to set a password. Kept in MongoDB alongside the
+// other operational logs (Notification, ReminderDispatch) rather than MySQL,
+// since nothing here is relational and it is only ever queried by who did it or
+// which patient it concerns.
+//
+// An invitation is worth recording for the same reason an export is: it is a
+// staff member reaching into somebody's account, and it grants whoever holds
+// the link the ability to set a password on it.
 const auditLogSchema = new mongoose.Schema(
   {
-    action: { type: String, enum: ['export', 'import'], required: true },
+    action: { type: String, enum: ['export', 'import', 'invite'], required: true },
     // The patient the action concerns. Absent for a bulk import, which is not
     // about a single patient.
     patientId: { type: Number, default: null },

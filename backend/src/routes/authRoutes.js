@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const rateLimit = require('express-rate-limit');
-const { body } = require('express-validator');
+const { body, param } = require('express-validator');
 
 const authController = require('../controllers/authController');
 const authenticate = require('../middleware/authenticate');
@@ -57,5 +57,34 @@ router.post(
 
 router.post('/login', loginLimiter, credentials, validate, authController.login);
 router.get('/me', authenticate, authController.me);
+
+// An invitation token is a credential - holding one sets an account's password
+// - so these are limited like sign-in rather than left on the general allowance.
+// A token is 64 hex characters, so this is not a limit anyone reaches honestly.
+const inviteLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: process.env.NODE_ENV === 'loadtest' ? 100000 : 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many attempts, please try again later' },
+});
+
+const inviteToken = param('token').isString().bail().isLength({ min: 64, max: 64 }).isHexadecimal();
+
+router.get(
+  '/invite/:token',
+  inviteLimiter,
+  inviteToken,
+  validate,
+  authController.checkInvitation
+);
+
+router.post(
+  '/invite/:token',
+  inviteLimiter,
+  [inviteToken, body('password').isString().bail().isLength({ min: 8, max: 200 })],
+  validate,
+  authController.acceptInvitation
+);
 
 module.exports = router;

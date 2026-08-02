@@ -6,6 +6,38 @@ import { importPatients } from '../../services/patientApi';
 
 const ROW_LIMIT_SHOWN = 200;
 
+// The invitation link, with a way to take a copy of it. Only shown when mail
+// could not deliver it, since otherwise the patient already has it.
+const InviteLink = ({ link }) => {
+  const [copied, setCopied] = useState(false);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Refused permission, or an insecure origin. The link is on screen to be
+      // selected by hand, so there is nothing to report.
+    }
+  };
+
+  return (
+    <div className="mt-2 flex items-center gap-2">
+      <code className="min-w-0 flex-1 truncate rounded bg-white px-2 py-1 text-xs text-slate-700">
+        {link}
+      </code>
+      <button
+        type="button"
+        onClick={copy}
+        className="shrink-0 rounded border border-green-300 px-2 py-1 text-xs hover:bg-green-100"
+      >
+        {copied ? 'Copied' : 'Copy'}
+      </button>
+    </div>
+  );
+};
+
 // Bulk patient onboarding from a file: pick a CSV or JSON export from another
 // system, and get back exactly which rows were created and which were not,
 // down to the field and the reason.
@@ -69,8 +101,9 @@ const ImportPatients = () => {
           <code className="rounded bg-slate-100 px-1">healthCardNumber</code>,{' '}
           <code className="rounded bg-slate-100 px-1">medicalHistory</code>, and{' '}
           <code className="rounded bg-slate-100 px-1">allergies</code>. A row without its own{' '}
-          <code className="rounded bg-slate-100 px-1">password</code> gets one generated
-          automatically, shown in the report below.
+          <code className="rounded bg-slate-100 px-1">password</code> is emailed an invitation to
+          choose one. No password is created on anyone&apos;s behalf, and nothing below needs
+          writing down &mdash; a patient&apos;s record will issue a fresh invitation at any time.
         </p>
 
         <input
@@ -154,15 +187,26 @@ const ImportPatients = () => {
                   {insertedRows.slice(0, ROW_LIMIT_SHOWN).map((row) => (
                     <li
                       key={row.line}
-                      className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 px-4 py-2.5 text-sm text-green-800"
+                      className="rounded-lg border border-green-200 bg-green-50 px-4 py-2.5 text-sm text-green-800"
                     >
-                      <span>
-                        Line {row.line} — {row.email}
-                      </span>
-                      {row.temporaryPassword && (
-                        <span className="font-mono text-xs">
-                          temp password: {row.temporaryPassword}
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span>
+                          Line {row.line} — {row.email}
                         </span>
+                        {row.invitation && (
+                          <span className="text-xs">
+                            {row.invitation.delivery === 'sent'
+                              ? 'invitation emailed'
+                              : 'invitation not emailed'}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Shown so the link can be passed on where mail is not
+                          set up. Nothing here needs writing down - the patient
+                          record issues a fresh one whenever it is asked. */}
+                      {row.invitation && row.invitation.delivery !== 'sent' && (
+                        <InviteLink link={row.invitation.link} />
                       )}
                     </li>
                   ))}
