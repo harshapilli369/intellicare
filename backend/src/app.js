@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const compression = require('compression');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
@@ -55,6 +56,43 @@ app.use(
     referrerPolicy: { policy: 'no-referrer' },
   })
 );
+
+// Compresses responses the client is willing to accept compressed. This API
+// answers almost entirely in JSON, which is text with a great deal of
+// repetition in it - the same field names on every row - so it compresses far
+// better than most payloads: a patient chart goes from about 128KB to 8KB.
+//
+// Placed before the routes so everything they return passes through it, and
+// before the body parsers so it is not doing work on requests.
+//
+// The threshold keeps small answers alone: below about a kilobyte, the headers
+// and the CPU spent compressing cost more than the bytes saved.
+app.use(
+  compression({
+    threshold: 1024,
+    // A little more effort than the default 6. These payloads are generated
+    // per request rather than served from a cache, but they are small enough
+    // that the extra CPU is under a millisecond and the saving is real.
+    level: 7,
+  })
+);
+
+// Express already puts an ETag on every JSON response, which is what lets a
+// client ask "has this changed?" and be told "no" in a few bytes instead of
+// being sent the whole thing again. Without a Cache-Control directive, though,
+// a browser is left to guess whether to bother asking, and generally does not.
+//
+// `no-cache` does not mean "do not cache" - it means "cache it, but check with
+// me before using it". That is exactly right for clinical data: a stale chart
+// must never be shown, and a revalidation that comes back 304 costs a couple
+// of hundred bytes rather than the hundred kilobytes it replaces.
+//
+// `private` keeps it out of any shared cache in between, which patient data has
+// no business sitting in.
+app.use((req, res, next) => {
+  if (req.method === 'GET') res.set('Cache-Control', 'private, no-cache');
+  next();
+});
 
 app.use(morgan('dev'));
 

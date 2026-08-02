@@ -1,0 +1,107 @@
+{
+  "name": "baseline",
+  "takenAt": "2026-08-02T20:45:14.161Z",
+  "base": "http://localhost:5000/api",
+  "runs": 30,
+  "results": [
+    {
+      "label": "patient directory, one page",
+      "path": "/patients?limit=10",
+      "status": 200,
+      "encoding": "none",
+      "bytesOverWire": 2598,
+      "bytesOfJson": 2598,
+      "medianMs": 8.2,
+      "p95Ms": 11.7,
+      "minMs": 6.1
+    },
+    {
+      "label": "patient directory, full page",
+      "path": "/patients?limit=100",
+      "status": 200,
+      "encoding": "none",
+      "bytesOverWire": 24525,
+      "bytesOfJson": 24525,
+      "medianMs": 14.7,
+      "p95Ms": 17.6,
+      "minMs": 10.8
+    },
+    {
+      "label": "one patient chart",
+      "path": "/patients/720",
+      "status": 200,
+      "encoding": "none",
+      "bytesOverWire": 128030,
+      "bytesOfJson": 128030,
+      "medianMs": 17,
+      "p95Ms": 37.4,
+      "minMs": 13.8
+    },
+    {
+      "label": "clinician dashboard",
+      "path": "/dashboard/clinician",
+      "status": 200,
+      "encoding": "none",
+      "bytesOverWire": 859,
+      "bytesOfJson": 859,
+      "medianMs": 12.4,
+      "p95Ms": 15.8,
+      "minMs": 9
+    },
+    {
+      "label": "admin dashboard",
+      "path": "/dashboard/admin",
+      "status": 200,
+      "encoding": "none",
+      "bytesOverWire": 855,
+      "bytesOfJson": 855,
+      "medianMs": 6.3,
+      "p95Ms": 8.7,
+      "minMs": 4.6
+    },
+    {
+      "label": "appointment list",
+      "path": "/appointments",
+      "status": 200,
+      "encoding": "none",
+      "bytesOverWire": 92903,
+      "bytesOfJson": 92903,
+      "medianMs": 20.2,
+      "p95Ms": 33.8,
+      "minMs": 14.4
+    },
+    {
+      "label": "availability for a day",
+      "path": "/appointments/availability?clinicianId=1366&date=2026-12-15",
+      "status": 200,
+      "encoding": "none",
+      "bytesOverWire": 497,
+      "bytesOfJson": 497,
+      "medianMs": 5.2,
+      "p95Ms": 6.3,
+      "minMs": 4
+    },
+    {
+      "label": "clinical notes",
+      "path": "/notes/patient/720",
+      "status": 200,
+      "encoding": "none",
+      "bytesOverWire": 35051,
+      "bytesOfJson": 35051,
+      "medianMs": 9.5,
+      "p95Ms": 12.2,
+      "minMs": 6
+    },
+    {
+      "label": "chart export (json)",
+      "path": "/patients/720/export?format=json",
+      "status": 200,
+      "encoding": "none",
+      "bytesOverWire": 146098,
+      "bytesOfJson": 146098,
+      "medianMs": 19.2,
+      "p95Ms": 39.9,
+      "minMs": 13.8
+    }
+  ]
+}

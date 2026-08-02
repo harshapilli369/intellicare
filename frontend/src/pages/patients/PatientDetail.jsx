@@ -183,6 +183,7 @@ const PatientDetail = () => {
 
         <PreviousAppointments
           appointments={appointments}
+          total={patient.totals?.appointments ?? appointments.length}
           onViewSummary={openSummary}
           onViewNotes={setNotesFor}
           canViewSummary={isClinician}

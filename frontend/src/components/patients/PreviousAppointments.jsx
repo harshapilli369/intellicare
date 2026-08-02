@@ -12,6 +12,7 @@ const formatDate = (value) =>
 // the clinical notes API exists.
 const PreviousAppointments = ({
   appointments,
+  total = 0,
   onViewSummary,
   onViewNotes,
   canViewSummary,
@@ -64,6 +65,16 @@ const PreviousAppointments = ({
           </li>
         ))}
       </ul>
+    )}
+
+    {/* The record carries recent history rather than every visit ever, so when
+        there is more the panel says so instead of quietly implying this is all
+        of it. */}
+    {total > appointments.length && (
+      <p className="mt-6 text-sm text-slate-500">
+        Showing the {appointments.length} most recent of {total} visits. The full history is in
+        the exported chart.
+      </p>
     )}
   </section>
 );
