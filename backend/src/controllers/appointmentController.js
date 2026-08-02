@@ -304,4 +304,40 @@ const setStatus = async (req, res, next) => {
   }
 };
 
-module.exports = { list, availability, getById, book, reschedule, cancel, setStatus };
+const daily = async (req, res, next) => {
+  try {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+
+    const end = new Date(start);
+    end.setDate(start.getDate() + 1);
+
+    const appointments = await Appointment.findAll({
+      where: {
+        scheduledAt: { [Op.between]: [start, end] }
+      },
+      include: [
+        {
+          model: Patient,
+          include: {
+            model: User,
+            attributes: ['name', 'email', 'phone']
+          }
+        },
+        {
+          model: User,
+          as: 'Clinician',
+          attributes: ['name', 'email']
+        }
+      ],
+      order: [['scheduledAt', 'ASC']]
+    });
+
+    res.json({ success: true, appointments });
+  } catch (err) {
+    next(err);
+  }
+};
+
+
+module.exports = { list, availability, getById, book, reschedule, cancel, setStatus, daily };

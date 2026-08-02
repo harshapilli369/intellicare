@@ -34,6 +34,8 @@ router.get(
   appointmentController.availability
 );
 
+router.get('/daily', authorize('admin'), appointmentController.daily);
+
 // Declared after /availability so that path is not swallowed by :id.
 router.get('/:id', appointmentId, validate, appointmentController.getById);
 
