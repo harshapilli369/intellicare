@@ -9,14 +9,22 @@ const { silenceMail } = require('./helpers');
 
 describe('Outgoing mail', () => {
   let restoreMail;
+  let realEnv;
 
   beforeEach(() => {
     restoreMail = silenceMail();
+    // The service refuses to send under `loadtest`, which is how the API is run
+    // for the suite. These tests are about the transport itself, so they pin an
+    // environment where sending is allowed and stub the provider instead.
+    realEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'test';
     delete require.cache[require.resolve('../src/services/emailService')];
   });
 
   afterEach(() => {
     restoreMail();
+    if (realEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = realEnv;
     delete require.cache[require.resolve('../src/services/emailService')];
   });
 

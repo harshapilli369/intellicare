@@ -44,6 +44,105 @@ describe('Invitations for imported patients', () => {
     patient = await login(SEEDED.patient);
   });
 
+  // Proposal 5.7 asks for import to "add new patients or update existing
+  // demographic and historical records in bulk". Only the first half worked -
+  // a row whose email was already on file was refused, so re-importing a
+  // corrected export changed nothing at all.
+  describe('bringing existing patients up to date', () => {
+    const read = async (id) => (await get(`/patients/${id}`, admin.token)).json.patient;
+
+    it('updates a patient already on the books rather than refusing them', async () => {
+      const { email, row } = await importOne({
+        phone: '9025550100',
+        address: '1 Old Street',
+        sex: 'Female',
+      });
+      const before = await read(row.patientId);
+
+      const { json } = await importCsv(
+        `name,email,phone,address\nAda Lovelace,${email},9025559999,42 New Road\n`,
+        admin.token
+      );
+      const again = json.results[0];
+
+      assert.equal(again.status, 'updated');
+      assert.equal(json.updated, 1);
+      assert.equal(json.rejected, 0);
+      assert.deepEqual([...again.changed].sort(), ['address', 'name', 'phone']);
+
+      const after = await read(row.patientId);
+      assert.equal(after.phone, '9025559999');
+      assert.equal(after.address, '42 New Road');
+      assert.equal(after.sex, before.sex, 'a column the file left out is not blanked');
+    });
+
+    // A file exported with three columns, corrected, and sent back must not
+    // erase everything it did not mention.
+    it('leaves out what the file leaves out', async () => {
+      const { email, row } = await importOne({
+        medicalHistory: 'Asthma',
+        allergies: 'Penicillin',
+      });
+      const before = await read(row.patientId);
+
+      await importCsv(`name,email,phone\nAda Lovelace,${email},9025551234\n`, admin.token);
+      const after = await read(row.patientId);
+
+      assert.deepEqual(after.medicalHistory, before.medicalHistory);
+      assert.deepEqual(after.allergies, before.allergies);
+    });
+
+    // A password belongs to the patient once they have set one. An
+    // administrator re-importing a spreadsheet must not overwrite it.
+    it('never touches a password on an update', async () => {
+      const { email } = await importOne({ password: 'TheirOwnPassword1!' });
+
+      await importCsv(`name,email,phone\nAda Lovelace,${email},9025554321\n`, admin.token);
+
+      const { status } = await post('/auth/login', null, {
+        email,
+        password: 'TheirOwnPassword1!',
+      });
+      assert.equal(status, 200, 'they can still sign in with the password they had');
+    });
+
+    it('refuses a row naming a staff account', async () => {
+      const { json } = await importCsv(
+        `name,email,phone\nNot A Patient,${SEEDED.admin},9025550000\n`,
+        admin.token
+      );
+
+      assert.equal(json.results[0].status, 'rejected');
+      assert.match(json.results[0].errors[0].message, /staff account/);
+    });
+
+    it('still refuses the same address twice in one file', async () => {
+      const email = `dup.${Date.now()}@example.com`;
+      const { json } = await importCsv(`name,email\nOne,${email}\nTwo,${email}\n`, admin.token);
+
+      assert.equal(json.results[1].status, 'rejected');
+      assert.match(json.results[1].errors[0].message, /Duplicate of line 1/);
+    });
+
+    it('adds, updates and rejects within one file, and the totals add up', async () => {
+      const { email } = await importOne();
+      const fresh = `fresh.${Date.now()}@example.com`;
+
+      const { json } = await importCsv(
+        `name,email,phone\n` +
+          `Ada Lovelace,${email},9025551111\n` +
+          `Brand New,${fresh},9025552222\n` +
+          `Bad Row,not-an-email,9025553333\n`,
+        admin.token
+      );
+
+      assert.equal(json.updated, 1);
+      assert.equal(json.inserted, 1);
+      assert.equal(json.rejected, 1);
+      assert.equal(json.inserted + json.updated + json.rejected, json.totalRows);
+    });
+  });
+
   describe('what an import produces', () => {
     it('issues an invitation instead of inventing a password', async () => {
       const { row } = await importOne();
