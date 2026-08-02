@@ -37,3 +37,6 @@ backend/uploads/
 # Cache
 .npm
 .eslintcache
+
+# Build output from the bundle report
+frontend/dist/

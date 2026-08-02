@@ -1,28 +1,40 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 
 import { useAuth, homePathFor } from './context/AuthContext';
 import ProtectedRoute from './routes/ProtectedRoute';
 import AppLayout from './components/layout/AppLayout';
 
+// The screens somebody sees before they are signed in stay in the first bundle:
+// making a visitor wait for a second request to be shown a login form would be
+// slower, not faster.
 import Login from './pages/auth/Login';
 import SignUp from './pages/auth/SignUp';
-import AcceptInvitation from './pages/auth/AcceptInvitation';
 import LaunchPage from './pages/LaunchPage';
-import ClinicianDashboard from './pages/clinician/Dashboard';
-import ClinicianSchedule from './pages/clinician/Schedule';
-import AISummaries from './pages/clinician/AISummaries';
-import AdminDashboard from './pages/admin/Dashboard';
-import AdminAppointments from './pages/admin/Appointments';
-import AddPatient from './pages/admin/AddPatient';
-import ImportPatients from './pages/admin/ImportPatients';
-import PatientDashboard from './pages/patient/Dashboard';
-import PersonalInformation from './pages/patient/PersonalInformation';
-import PatientSummaries from './pages/patient/Summaries';
-import PatientAppointments from './pages/patient/Appointments';
-import BookAppointment from './pages/patient/BookAppointment';
-import PatientsList from './pages/patients/PatientsList';
-import PatientDetail from './pages/patients/PatientDetail';
-import PrintPrescription from './pages/prescriptions/PrintPrescription';
+
+// Everything behind a sign-in is fetched when it is first opened.
+//
+// One bundle meant a patient downloaded every administrative and clinical
+// screen they will never be permitted to see - the import screen, the
+// prescription pad, the AI summary editor - before their own dashboard could
+// paint. Split by route, a browser asks for a screen when somebody navigates to
+// it, and the chunks for the other two roles are never requested at all.
+const AcceptInvitation = lazy(() => import('./pages/auth/AcceptInvitation'));
+const ClinicianDashboard = lazy(() => import('./pages/clinician/Dashboard'));
+const ClinicianSchedule = lazy(() => import('./pages/clinician/Schedule'));
+const AISummaries = lazy(() => import('./pages/clinician/AISummaries'));
+const AdminDashboard = lazy(() => import('./pages/admin/Dashboard'));
+const AdminAppointments = lazy(() => import('./pages/admin/Appointments'));
+const AddPatient = lazy(() => import('./pages/admin/AddPatient'));
+const ImportPatients = lazy(() => import('./pages/admin/ImportPatients'));
+const PatientDashboard = lazy(() => import('./pages/patient/Dashboard'));
+const PersonalInformation = lazy(() => import('./pages/patient/PersonalInformation'));
+const PatientSummaries = lazy(() => import('./pages/patient/Summaries'));
+const PatientAppointments = lazy(() => import('./pages/patient/Appointments'));
+const BookAppointment = lazy(() => import('./pages/patient/BookAppointment'));
+const PatientsList = lazy(() => import('./pages/patients/PatientsList'));
+const PatientDetail = lazy(() => import('./pages/patients/PatientDetail'));
+const PrintPrescription = lazy(() => import('./pages/prescriptions/PrintPrescription'));
 
 // Wraps a page for one role: requires sign-in, checks the role, and renders it
 // inside the shared shell.
@@ -40,7 +52,13 @@ const Home = () => {
   return user ? <Navigate to={homePathFor(user.role)} replace /> : <LaunchPage />;
 };
 
+// What is shown while a screen's own chunk is being fetched. Deliberately
+// plain: on any ordinary connection it is visible for a few tens of
+// milliseconds, and a spinner that flashes is worse than a line of text.
+const Loading = () => <p className="p-8 text-sm text-slate-500">Loading...</p>;
+
 const App = () => (
+  <Suspense fallback={<Loading />}>
   <Routes>
     <Route path="/login" element={<Login />} />
     <Route path="/signup" element={<SignUp />} />
@@ -75,6 +93,7 @@ const App = () => (
     <Route path="/" element={<Home />} />
     <Route path="*" element={<Home />} />
   </Routes>
+  </Suspense>
 );
 
 export default App;

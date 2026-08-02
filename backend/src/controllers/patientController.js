@@ -15,6 +15,13 @@ const { patientProfileFor } = require('../middleware/ownership');
 // password hash.
 const USER_FIELDS = ['id', 'name', 'email', 'phone'];
 
+// How much history a chart carries. Enough to fill the lists the profile screen
+// draws, with room to spare; not the whole of a long record, which nobody reads
+// from a summary screen and which grows without limit. The full history is
+// still available - the export returns everything, and the appointment list
+// takes filters.
+const CHART_HISTORY_LIMIT = 25;
+
 // A patient is stored across two tables: the account they sign in with and the
 // clinical profile. Clients see one object, so both halves are flattened here
 // and every response goes through this function.
@@ -118,18 +125,37 @@ const getById = async (req, res, next) => {
 
     // Medications and visit history are read separately so each can carry its
     // own ordering; the profile screen shows both newest first.
-    const prescriptions = await Prescription.findAll({
-      where: { patientId: patient.id },
-      order: [['createdAt', 'DESC']],
-    });
-    const appointments = await Appointment.findAll({
-      where: { patientId: patient.id },
-      order: [['scheduledAt', 'DESC']],
-    });
+    //
+    // Bounded, and counted alongside. The screen shows a recent-history list
+    // and a medication list, neither of which is scrolled to the end of a long
+    // record - but this returned every row a patient had ever accumulated. On
+    // a well-used record that was a hundred and twenty kilobytes of JSON to
+    // render a dozen lines, and it grew for ever. The count is returned too, so
+    // the screen can say how much more there is rather than silently implying
+    // that this is all of it.
+    const [prescriptions, prescriptionCount, appointments, appointmentCount] = await Promise.all([
+      Prescription.findAll({
+        where: { patientId: patient.id },
+        order: [['createdAt', 'DESC']],
+        limit: CHART_HISTORY_LIMIT,
+      }),
+      Prescription.count({ where: { patientId: patient.id } }),
+      Appointment.findAll({
+        where: { patientId: patient.id },
+        order: [['scheduledAt', 'DESC']],
+        limit: CHART_HISTORY_LIMIT,
+      }),
+      Appointment.count({ where: { patientId: patient.id } }),
+    ]);
 
     res.json({
       success: true,
-      patient: { ...shape(patient), prescriptions, appointments },
+      patient: {
+        ...shape(patient),
+        prescriptions,
+        appointments,
+        totals: { prescriptions: prescriptionCount, appointments: appointmentCount },
+      },
     });
   } catch (err) {
     next(err);

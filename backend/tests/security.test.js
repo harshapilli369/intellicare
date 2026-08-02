@@ -15,19 +15,15 @@ describe('Security controls', () => {
     patient = await login(SEEDED.patient);
     eliasId = await patientIdFor(clinician.token, 'Elias Tobias');
 
-    // Pick a visit that actually has a summary rather than the most recent one:
-    // other test files book new appointments for this patient in parallel, so
-    // "most recent" is a moving target and lands on a visit nothing was ever
-    // written about.
-    const record = await get(`/patients/${eliasId}`, clinician.token);
-    for (const appointment of record.json.patient.appointments) {
-      const summary = await get(`/ai/summary/${appointment.id}`, clinician.token);
-      if (summary.status === 200) {
-        appointmentId = appointment.id;
-        break;
-      }
-    }
-    assert.ok(appointmentId, 'the seed needs one appointment with a summary on it');
+    // A visit that actually has a summary on it, asked for directly rather than
+    // found by scanning the chart. The most recent visit is a moving target -
+    // other files book for this patient in parallel - and the chart carries
+    // recent history rather than everything, so a seeded summary on an older
+    // visit is not in it. The summaries endpoint names its own appointment.
+    const released = await get(`/ai/patient/${eliasId}/summaries`, clinician.token);
+    appointmentId = released.json.summaries[0]?.appointmentId;
+
+    assert.ok(appointmentId, 'the seed needs one released summary to read');
   });
 
   describe('response headers', () => {

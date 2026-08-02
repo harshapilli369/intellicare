@@ -203,19 +203,27 @@ describe('Prescriptions', () => {
 
   describe('reading a medication list', () => {
     it('appears on the patient record, which is the acceptance criterion', async () => {
-      const before = (await get(`/patients/${eliasId}`, clinician.token)).json.patient.prescriptions
-        .length;
-
-      await post('/prescriptions', clinician.token, {
+      const issued = await post('/prescriptions', clinician.token, {
         patientId: eliasId,
         medication: 'Cetirizine',
         dosage: '10mg',
         duration: '30 days',
       });
+      assert.equal(issued.status, 201);
 
-      const after = (await get(`/patients/${eliasId}`, clinician.token)).json.patient.prescriptions;
-      assert.equal(after.length, before + 1);
-      assert.ok(after.some((p) => p.medication === 'Cetirizine'));
+      const { json } = await get(`/patients/${eliasId}`, clinician.token);
+      const { prescriptions, totals } = json.patient;
+
+      // Asked whether the new one is there, rather than whether the list grew.
+      // The chart carries recent history rather than every row a patient has
+      // ever accumulated, so on a long record the list is capped and counting
+      // it measures the cap instead of the prescription.
+      assert.ok(
+        prescriptions.some((p) => p.id === issued.json.prescription.id),
+        'the prescription just written is on the record'
+      );
+      assert.equal(prescriptions[0].medication, 'Cetirizine', 'and newest first, so it leads');
+      assert.ok(totals.prescriptions >= prescriptions.length, 'the full count is reported too');
     });
 
     it('splits current from past', async () => {
