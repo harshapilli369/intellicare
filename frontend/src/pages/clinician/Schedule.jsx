@@ -7,6 +7,7 @@ import SearchInput from '../../components/common/SearchInput';
 import useDebouncedValue from '../../hooks/useDebouncedValue';
 import { useAuth } from '../../context/AuthContext';
 import { listAppointments, setAppointmentStatus } from '../../services/appointmentApi';
+import { requestIntake as requestIntakeForm } from '../../services/intakeApi';
 
 // A date as YYYY-MM-DD in local terms, which is what the API filters on.
 const toDateInput = (date) =>
@@ -68,6 +69,27 @@ const ClinicianSchedule = () => {
     (appointmentId) => navigate(`/clinician/ai-summaries?appointment=${appointmentId}`),
     [navigate]
   );
+
+  // Asking a patient for their intake form. The clinic may say what it wants to
+  // know, which is what the patient is shown alongside the request.
+  const requestIntake = useCallback(async (appointment) => {
+    const note = window.prompt(
+      `What would you like ${appointment.patientName} to tell you before the visit?\n\nLeave blank for the standard request.`,
+      ''
+    );
+    // Cancelled the prompt rather than leaving it empty.
+    if (note === null) return;
+
+    setBusyId(appointment.id);
+    try {
+      await requestIntakeForm(appointment.id, note.trim() || undefined);
+      toast.success(`${appointment.patientName} has been asked to fill in their form`);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not send that request');
+    } finally {
+      setBusyId(null);
+    }
+  }, []);
 
   // The card is told what happened; the list is re-read so the change shows in
   // the same shape the API reports it, rather than a guess made here.
@@ -155,6 +177,7 @@ const ClinicianSchedule = () => {
               onOpenPatient={openPatient}
               onGenerateBrief={generateBrief}
               onSetStatus={changeStatus}
+              onRequestIntake={requestIntake}
               busy={busyId === appointment.id}
             />
           ))}

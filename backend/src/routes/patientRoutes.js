@@ -81,6 +81,30 @@ router.put(
   patientController.update
 );
 
+// When and how a patient wants to be reminded about their visits. Declared
+// before `/:id` so "me" is never read as an id, and scoped from the token so
+// there is no id to tamper with.
+router.get(
+  '/me/reminder-preferences',
+  authorize('patient'),
+  patientController.getReminderPreferences
+);
+
+router.put(
+  '/me/reminder-preferences',
+  authorize('patient'),
+  [
+    // An empty list is meaningful - it is a patient asking not to be reminded -
+    // so it is accepted, while a missing list is not.
+    body('offsetsHours').isArray({ max: 6 }),
+    body('offsetsHours.*').isInt({ min: 1, max: 336 }).toInt(),
+    body('email').optional().isBoolean().toBoolean(),
+    body('inApp').optional().isBoolean().toBoolean(),
+  ],
+  validate,
+  patientController.setReminderPreferences
+);
+
 // How the clinic reaches a patient, corrected by the patient themselves. A
 // separate route from the one above on purpose: that one accepts clinical and
 // identifying fields and is an administrator's, this one accepts two contact

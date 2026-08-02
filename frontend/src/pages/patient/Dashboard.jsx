@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 
 import { useAuth } from '../../context/AuthContext';
 import { getPatientDashboard } from '../../services/dashboardApi';
+import { outstandingIntake } from '../../services/intakeApi';
 import { exportPatient } from '../../services/patientApi';
 
 const formatTime = (value) =>
@@ -25,18 +26,23 @@ const PatientDashboard = () => {
   const navigate = useNavigate();
 
   const [data, setData] = useState(null);
+  const [outstanding, setOutstanding] = useState([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
 
-    getPatientDashboard()
-      .then((res) => {
-        if (!cancelled) setData(res);
-      })
-      .catch(() => {
-        if (!cancelled) toast.error('Could not load your dashboard');
+    // Read together. An outstanding form failing to load should not cost the
+    // patient their whole dashboard, so it settles on its own.
+    Promise.allSettled([getPatientDashboard(), outstandingIntake()])
+      .then(([dashboard, intake]) => {
+        if (cancelled) return;
+
+        if (dashboard.status === 'fulfilled') setData(dashboard.value);
+        else toast.error('Could not load your dashboard');
+
+        if (intake.status === 'fulfilled') setOutstanding(intake.value);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -99,6 +105,53 @@ const PatientDashboard = () => {
           )}
         </section>
       </div>
+
+      {/* Something the clinic is waiting on, so it sits above everything the
+          patient might merely like to read. */}
+      {outstanding.length > 0 && (
+        <div className="mt-6 rounded-xl border-2 border-amber-400 bg-amber-50 px-6 py-5">
+          <p className="text-lg font-bold text-slate-900">
+            {outstanding.length === 1
+              ? 'Your clinic has asked you to fill in a form'
+              : `Your clinic has asked you to fill in ${outstanding.length} forms`}
+          </p>
+
+          <ul className="mt-3 space-y-3">
+            {outstanding.map((request) => (
+              <li
+                key={request.appointmentId}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-white px-4 py-3"
+              >
+                <div>
+                  <p className="text-sm font-medium text-slate-900">
+                    {[request.clinicianName, request.reason].filter(Boolean).join(' · ') ||
+                      'Upcoming appointment'}
+                  </p>
+                  <p className="mt-0.5 text-xs text-slate-600">
+                    {new Date(request.scheduledAt).toLocaleString('en-CA', {
+                      weekday: 'long',
+                      month: 'long',
+                      day: 'numeric',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    })}
+                  </p>
+                  {request.message && (
+                    <p className="mt-1 text-xs italic text-slate-700">“{request.message}”</p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate('/patient/appointments')}
+                  className="rounded-md bg-amber-500 px-5 py-2 text-sm font-bold text-white transition hover:bg-amber-600"
+                >
+                  Fill it in
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {waiting > 0 && (
         <div className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border-2 border-green-500 bg-white px-6 py-5">

@@ -22,7 +22,14 @@ const STATUS_LABEL = {
 
 // One slot in the day. Memoized so filtering the list by name or time only
 // re-renders the cards that actually changed.
-const AppointmentCard = memo(({ appointment, onOpenPatient, onGenerateBrief, onSetStatus, busy }) => {
+const AppointmentCard = memo(({
+  appointment,
+  onOpenPatient,
+  onGenerateBrief,
+  onSetStatus,
+  onRequestIntake,
+  busy,
+}) => {
   const { status } = appointment;
   const isOpen = status === 'scheduled';
 
@@ -66,7 +73,17 @@ const AppointmentCard = memo(({ appointment, onOpenPatient, onGenerateBrief, onS
       {/* Recording how the visit went is only meaningful while it is still open. */}
       {isOpen && (
         <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4">
-          <span className="text-xs text-slate-500">Mark this visit</span>
+          {/* Asking for what the patient can tell the clinic before arriving,
+              which is also what the pre-appointment brief reads from. */}
+          <button
+            type="button"
+            onClick={() => onRequestIntake(appointment)}
+            disabled={busy}
+            className="btn-chip w-auto px-3 disabled:opacity-50"
+          >
+            Request intake form
+          </button>
+          <span className="ml-2 text-xs text-slate-500">Mark this visit</span>
           <button
             type="button"
             onClick={() => onSetStatus(appointment.id, 'completed')}

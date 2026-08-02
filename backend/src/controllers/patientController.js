@@ -7,6 +7,9 @@ const AuditLog = require('../models/mongodb/AuditLog');
 const exportService = require('../services/exportService');
 const importService = require('../services/importService');
 const invitationService = require('../services/invitationService');
+const reminderService = require('../services/reminderService');
+const ReminderPreference = require('../models/mongodb/ReminderPreference');
+const { patientProfileFor } = require('../middleware/ownership');
 
 // The account columns a patient record is allowed to expose. Never includes the
 // password hash.
@@ -281,6 +284,65 @@ const updateOwnDetails = async (req, res, next) => {
   }
 };
 
+// When and how a patient wants to be reminded. Absent means the clinic's own
+// schedule, so a patient who has never touched this reads back the default
+// rather than an empty form.
+const getReminderPreferences = async (req, res, next) => {
+  try {
+    const profile = await patientProfileFor(req.user);
+    if (!profile) return res.status(403).json({ message: 'Forbidden' });
+
+    const stored = await ReminderPreference.findOne({ patientId: profile.id });
+    const schedule = reminderService.scheduleFor(stored);
+
+    res.json({
+      success: true,
+      preferences: {
+        offsetsHours: schedule.offsets,
+        email: schedule.email,
+        inApp: schedule.inApp,
+        // So the screen can say whether this is theirs or the clinic's.
+        usingClinicDefault: !stored,
+        clinicDefault: reminderService.offsets(),
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const setReminderPreferences = async (req, res, next) => {
+  try {
+    const profile = await patientProfileFor(req.user);
+    if (!profile) return res.status(403).json({ message: 'Forbidden' });
+
+    const { offsetsHours, email, inApp } = req.body;
+
+    // Largest first, matching how the clinic default is read, and de-duplicated
+    // so asking twice for the same hour does not send two reminders.
+    const offsets = [...new Set(offsetsHours.map(Number))].sort((a, b) => b - a);
+
+    const saved = await ReminderPreference.findOneAndUpdate(
+      { patientId: profile.id },
+      { patientId: profile.id, offsetsHours: offsets, email: email !== false, inApp: inApp !== false },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+
+    res.json({
+      success: true,
+      preferences: {
+        offsetsHours: saved.offsetsHours,
+        email: saved.email,
+        inApp: saved.inApp,
+        usingClinicDefault: false,
+        clinicDefault: reminderService.offsets(),
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 const remove = async (req, res, next) => {
   try {
     const patient = await Patient.findByPk(req.params.id);
@@ -443,4 +505,6 @@ module.exports = {
   exportChart,
   importPatients,
   invitePatient,
+  getReminderPreferences,
+  setReminderPreferences,
 };
