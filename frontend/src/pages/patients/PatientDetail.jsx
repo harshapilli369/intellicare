@@ -5,6 +5,7 @@ import { toast } from 'react-toastify';
 import AppointmentNotes from '../../components/notes/AppointmentNotes';
 import PrescribeDialog from '../../components/prescriptions/PrescribeDialog';
 import EditPatientDialog from '../../components/patients/EditPatientDialog';
+import ExportMenu from '../../components/patients/ExportMenu';
 import PatientInfoCard from '../../components/patients/PatientInfoCard';
 import PreviousAppointments from '../../components/patients/PreviousAppointments';
 import { useAuth } from '../../context/AuthContext';
@@ -84,12 +85,15 @@ const PatientDetail = () => {
         <Link to={`${base}/patients`} className="text-sm text-brand hover:underline">
           &larr; Back to patients
         </Link>
-        {/* Correcting demographics is the administrative assistant's job. */}
-        {user?.role === 'admin' && (
-          <button type="button" onClick={() => setEditing(true)} className="btn-outline">
-            Edit details
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          <ExportMenu patientId={id} canExportPdf />
+          {/* Correcting demographics is the administrative assistant's job. */}
+          {user?.role === 'admin' && (
+            <button type="button" onClick={() => setEditing(true)} className="btn-outline">
+              Edit details
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="mt-4 grid gap-8 lg:grid-cols-2">

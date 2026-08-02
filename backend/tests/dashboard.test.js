@@ -96,16 +96,31 @@ describe('Clinician dashboard', () => {
     });
 
     it('counts only appointments that belong to this patient', async () => {
-      // Both sides are read here rather than reusing the snapshot from `before`:
-      // other test files book and cancel against the same patient in parallel,
-      // so a count taken earlier will not agree with a list taken now.
-      const [fresh, listed] = await Promise.all([
-        get('/dashboard/patient', patient.token),
-        get('/appointments', patient.token),
-      ]);
+      // Two endpoints cannot be read as one instant, and other test files book
+      // and cancel against this same patient in parallel, so the two readings
+      // can legitimately straddle a change. Disagreeing twice in a row is not
+      // something a concurrent booking explains, so that is the failure worth
+      // reporting; a single disagreement is retried rather than believed.
+      const readBoth = async () => {
+        const [dash, listed] = await Promise.all([
+          get('/dashboard/patient', patient.token),
+          get('/appointments', patient.token),
+        ]);
+        return {
+          counted: dash.json.counts.bookedAppointments,
+          scheduled: listed.json.appointments.filter((a) => a.status === 'scheduled').length,
+          all: listed.json.appointments,
+        };
+      };
 
-      const scheduled = listed.json.appointments.filter((a) => a.status === 'scheduled').length;
-      assert.equal(fresh.json.counts.bookedAppointments, scheduled);
+      let reading = await readBoth();
+      if (reading.counted !== reading.scheduled) reading = await readBoth();
+
+      assert.equal(reading.counted, reading.scheduled);
+      assert.ok(
+        reading.all.every((a) => a.patientId === mine.patientId),
+        'and every appointment counted belongs to this patient'
+      );
     });
 
     it('names the clinician on the upcoming appointment, which is what the card shows', () => {

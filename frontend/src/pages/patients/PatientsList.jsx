@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
 import BookingDialog from '../../components/appointments/BookingDialog';
@@ -67,11 +67,20 @@ const PatientsList = () => {
     <div>
       <h1 className="sr-only">Patients</h1>
 
-      <SearchInput
-        value={search}
-        onChange={setSearch}
-        placeholder="Search Patient Name or Condition"
-      />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-[16rem] flex-1">
+          <SearchInput
+            value={search}
+            onChange={setSearch}
+            placeholder="Search Patient Name or Condition"
+          />
+        </div>
+        {user?.role === 'admin' && (
+          <Link to="/admin/patients/import" className="btn-outline whitespace-nowrap">
+            Import Patients
+          </Link>
+        )}
+      </div>
 
       <div className="mt-4 flex items-center justify-between gap-4">
         <p className="text-sm text-slate-500">

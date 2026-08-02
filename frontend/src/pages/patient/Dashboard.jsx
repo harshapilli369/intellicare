@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 
 import { useAuth } from '../../context/AuthContext';
 import { getPatientDashboard } from '../../services/dashboardApi';
+import { exportPatient } from '../../services/patientApi';
 
 const formatTime = (value) =>
   new Date(value).toLocaleTimeString('en-CA', {
@@ -25,6 +26,7 @@ const PatientDashboard = () => {
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,6 +46,17 @@ const PatientDashboard = () => {
       cancelled = true;
     };
   }, []);
+
+  const exportRecord = async (format) => {
+    setExporting(format);
+    try {
+      await exportPatient(data.patientId, format);
+    } catch {
+      toast.error('Could not export your record');
+    } finally {
+      setExporting(null);
+    }
+  };
 
   if (loading) return <p className="text-sm text-slate-500">Loading your dashboard...</p>;
   if (!data) return null;
@@ -120,6 +133,33 @@ const PatientDashboard = () => {
           Book an Appointment
         </button>
       </div>
+
+      <section className="card mt-6">
+        <h2 className="text-lg font-bold uppercase tracking-wide text-slate-900">
+          Export my record
+        </h2>
+        <p className="mt-2 text-sm text-slate-500">
+          Download your demographics, appointments, prescriptions, and visit summaries.
+        </p>
+        <div className="mt-4 flex gap-3">
+          <button
+            type="button"
+            onClick={() => exportRecord('csv')}
+            disabled={exporting !== null}
+            className="btn-outline"
+          >
+            {exporting === 'csv' ? 'Exporting...' : 'Download CSV'}
+          </button>
+          <button
+            type="button"
+            onClick={() => exportRecord('json')}
+            disabled={exporting !== null}
+            className="btn-outline"
+          >
+            {exporting === 'json' ? 'Exporting...' : 'Download JSON'}
+          </button>
+        </div>
+      </section>
     </div>
   );
 };

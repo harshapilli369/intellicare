@@ -1,4 +1,5 @@
 const router = require('express').Router();
+const multer = require('multer');
 const { body, param, query } = require('express-validator');
 
 const patientController = require('../controllers/patientController');
@@ -6,6 +7,13 @@ const authenticate = require('../middleware/authenticate');
 const authorize = require('../middleware/authorize');
 const validate = require('../middleware/validate');
 const { requireOwnPatient } = require('../middleware/ownership');
+
+// Import files are small (a batch of patient rows) and read once into memory
+// to be parsed; nothing about them is ever written to disk.
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+});
 
 router.use(authenticate);
 
@@ -71,5 +79,28 @@ router.put(
 );
 
 router.delete('/:id', authorize('admin'), patientId, validate, patientController.remove);
+
+// A patient's own chart, or (staff) any patient's — the ownership check draws
+// that line the same way the profile read above does. Format is checked in
+// the controller so an unsupported value gets a message naming the ones that
+// work, rather than express-validator's generic field-rejection response.
+router.get(
+  '/:id/export',
+  authorize('clinician', 'admin', 'patient'),
+  patientId,
+  query('format').optional().isIn(['csv', 'json', 'pdf']),
+  validate,
+  requireOwnPatient('id'),
+  patientController.exportChart
+);
+
+// Bulk onboarding from a file is the same administrative privilege as
+// onboarding one patient by hand.
+router.post(
+  '/import',
+  authorize('admin'),
+  upload.single('file'),
+  patientController.importPatients
+);
 
 module.exports = router;
