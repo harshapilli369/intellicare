@@ -24,6 +24,10 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Local tool settings. Kept out of the repository because they hold machine
+# specific paths and, in the past, credentials pasted into a command.
+.claude/
+
 # Testing
 coverage/
 
