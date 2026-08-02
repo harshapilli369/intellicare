@@ -65,9 +65,16 @@ router.post(
 router.put(
   '/:id',
   authorize('admin'),
-  [patientId, body('name').optional().isString().trim().notEmpty(), ...demographics],
+  [
+    body('name').optional().isString().trim(),
+    body('sex').optional().isIn(['Male', 'Female', 'Other']),
+    body('dateOfBirth').optional().isISO8601(),
+    body('address').optional().isString(),
+    body('medicalHistory').optional().isArray(),
+    body('allergies').optional().isArray(),
+  ],
   validate,
-  patientController.update
+  patientController.updatePatient
 );
 
 router.delete('/:id', authorize('admin'), patientId, validate, patientController.remove);
