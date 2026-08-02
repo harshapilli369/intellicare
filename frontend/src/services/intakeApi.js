@@ -19,6 +19,16 @@ export const submitIntake = (appointmentId, answers, files = []) => {
 export const getIntake = (appointmentId) =>
   api.get(`/intake/appointment/${appointmentId}`).then((r) => r.data.intake);
 
+// The clinic asking a patient to fill their form in. Staff only; asking again
+// nudges rather than creating a second request.
+export const requestIntake = (appointmentId, message) =>
+  api.post(`/intake/${appointmentId}/request`, { message }).then((r) => r.data.request);
+
+// What the signed-in patient still has to fill in. Scoped to them by the token,
+// so there is no id to pass.
+export const outstandingIntake = () =>
+  api.get('/intake/outstanding').then((r) => r.data.outstanding);
+
 // Attachments are fetched through the same authenticated client as everything
 // else, then handed to the browser as a download.
 export const downloadAttachment = (appointmentId, index, filename) =>

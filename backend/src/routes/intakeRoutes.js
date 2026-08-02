@@ -39,6 +39,20 @@ router.post(
   intakeController.submit
 );
 
+// The clinic asking for a form. Staff only - a patient does not request one of
+// themselves, they simply fill it in.
+router.post(
+  '/:appointmentId/request',
+  authorize('clinician', 'admin'),
+  [appointmentId, body('message').optional().isString().trim().isLength({ max: 500 })],
+  validate,
+  intakeController.request
+);
+
+// What the signed-in patient still has to fill in. Scoped to them from the
+// token, so there is no id to get wrong or to tamper with.
+router.get('/outstanding', authorize('patient'), intakeController.outstandingForMe);
+
 // Staff read it before the visit; the patient can see what they submitted.
 router.get(
   '/appointment/:appointmentId',

@@ -2,6 +2,7 @@ const { Op } = require('sequelize');
 
 const { Appointment, Patient, User } = require('../models/mysql');
 const ReminderDispatch = require('../models/mongodb/ReminderDispatch');
+const ReminderPreference = require('../models/mongodb/ReminderPreference');
 const { sendMail } = require('./emailService');
 const { notify } = require('./notificationService');
 const { formatWhen } = require('../utils/datetime');
@@ -61,8 +62,8 @@ const findWithinHorizon = async (offsetHours, now = new Date()) => {
 // (appointmentId, offsetHours) is what makes this safe to call repeatedly: a
 // second attempt loses the race to insert and is reported as a duplicate rather
 // than mailing the patient twice.
-const dispatchOne = async (appointment, offsetHours) => {
-  const to = appointment.Patient?.User?.email || null;
+const dispatchOne = async (appointment, offsetHours, channels = { email: true, inApp: true }) => {
+  const to = channels.email ? appointment.Patient?.User?.email || null : null;
 
   let claim;
   try {
@@ -84,14 +85,19 @@ const dispatchOne = async (appointment, offsetHours) => {
   // claimed by the same dispatch record, so it appears once however many times
   // the scan runs, and it still appears when there is no mail configured or
   // when sending fails.
-  await notify({
-    userId: appointment.Patient?.userId,
-    kind: 'appointment-reminder',
-    title: subject,
-    body: text,
-    link: '/patient',
-  });
+  if (channels.inApp) {
+    await notify({
+      userId: appointment.Patient?.userId,
+      kind: 'appointment-reminder',
+      title: subject,
+      body: text,
+      link: '/patient',
+    });
+  }
 
+  // With mail turned off for this patient there is no address to send to, and
+  // `sendMail` reports that as a skip - which is the honest record of what
+  // happened rather than a failure.
   const result = await sendMail({ to, subject, text });
 
   claim.status = result.status;
@@ -101,16 +107,54 @@ const dispatchOne = async (appointment, offsetHours) => {
   return { outcome: result.status };
 };
 
-// One pass over every configured offset. Returns a tally rather than logging
-// only, so the job and the tests can both see what happened.
+// What one patient has asked for, or the clinic's own schedule when they have
+// asked for nothing. An empty list of offsets is a patient saying "do not
+// remind me" and is honoured as such - which is why it cannot simply fall
+// through to the default the way an absent preference does.
+const scheduleFor = (preference) => {
+  if (!preference) return { offsets: offsets(), email: true, inApp: true };
+
+  return {
+    offsets: Array.isArray(preference.offsetsHours) ? preference.offsetsHours : offsets(),
+    email: preference.email !== false,
+    inApp: preference.inApp !== false,
+  };
+};
+
+// One pass. Every patient may be on a different schedule now, so the scan reads
+// the widest horizon anyone is asking for, then decides per appointment which
+// of that patient's offsets it has entered.
+//
+// Returns a tally rather than logging only, so the job and the tests can both
+// see what happened.
 const dispatchDue = async (now = new Date()) => {
   const tally = { sent: 0, skipped: 0, failed: 0, duplicate: 0 };
 
-  for (const offsetHours of offsets()) {
-    const due = await findWithinHorizon(offsetHours, now);
+  const preferences = await ReminderPreference.find({});
+  const byPatient = new Map(preferences.map((p) => [p.patientId, p]));
 
-    for (const appointment of due) {
-      const { outcome } = await dispatchOne(appointment, offsetHours);
+  // Far enough ahead to cover the clinic's own schedule and anyone who has
+  // asked to be told earlier than that.
+  const widest = Math.max(
+    ...offsets(),
+    ...preferences.flatMap((p) => (Array.isArray(p.offsetsHours) ? p.offsetsHours : [])),
+    0
+  );
+  if (widest === 0) return tally;
+
+  const upcoming = await findWithinHorizon(widest, now);
+
+  for (const appointment of upcoming) {
+    const { offsets: wanted, email, inApp } = scheduleFor(byPatient.get(appointment.patientId));
+
+    for (const offsetHours of wanted) {
+      // Inside this particular offset's horizon, rather than merely inside the
+      // widest one - otherwise everybody would be reminded at the earliest
+      // time anyone had asked for.
+      const horizon = new Date(now.getTime() + offsetHours * 3_600_000);
+      if (appointment.scheduledAt > horizon) continue;
+
+      const { outcome } = await dispatchOne(appointment, offsetHours, { email, inApp });
       tally[outcome] = (tally[outcome] || 0) + 1;
     }
   }
@@ -118,4 +162,10 @@ const dispatchDue = async (now = new Date()) => {
   return tally;
 };
 
-module.exports = { offsets, dispatchDue, findWithinHorizon, messageFor };
+module.exports = {
+  offsets,
+  scheduleFor,
+  dispatchDue,
+  findWithinHorizon,
+  messageFor,
+};

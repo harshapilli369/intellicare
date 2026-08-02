@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
+import ReminderSettings from '../../components/patients/ReminderSettings';
 import { getPatientDashboard } from '../../services/dashboardApi';
 import { getPatient, updateOwnContactDetails } from '../../services/patientApi';
 
@@ -119,6 +120,8 @@ const PersonalInformation = () => {
           </button>
         </div>
       </form>
+
+      <ReminderSettings />
 
       <section className="card mt-6">
         <h2 className="text-lg font-bold text-slate-900">What the clinic holds</h2>

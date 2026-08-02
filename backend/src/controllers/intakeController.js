@@ -1,6 +1,12 @@
-const { Appointment } = require('../models/mysql');
+const { Op } = require('sequelize');
+
+const { Appointment, Patient, User } = require('../models/mysql');
 const IntakeSubmission = require('../models/mongodb/IntakeSubmission');
+const IntakeRequest = require('../models/mongodb/IntakeRequest');
 const { patientProfileFor } = require('../middleware/ownership');
+const { notify } = require('../services/notificationService');
+const { sendMail } = require('../services/emailService');
+const { formatWhen } = require('../utils/datetime');
 
 // Attachments never travel with the submission itself; only enough to list them
 // and fetch one. Sending the bytes inside a JSON list would make reading an
@@ -84,7 +90,139 @@ const submit = async (req, res, next) => {
       { new: true, upsert: true, setDefaultsOnInsert: true }
     );
 
+    // Submitting answers whatever the clinic asked for. Marked rather than
+    // deleted, so the record still shows a form was requested and when it was
+    // answered.
+    await IntakeRequest.findOneAndUpdate(
+      { appointmentId, fulfilledAt: null },
+      { fulfilledAt: new Date() }
+    );
+
     res.status(201).json({ success: true, intake: shape(submission) });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// The clinic asking a patient to fill their form in before a visit. Asking
+// again is a nudge rather than a second request, so it updates the one that is
+// already outstanding and sends the patient another notification.
+const request = async (req, res, next) => {
+  try {
+    const appointmentId = Number(req.params.appointmentId);
+
+    const appointment = await Appointment.findByPk(appointmentId, {
+      include: [{ model: Patient, include: [{ model: User, attributes: ['id', 'name', 'email'] }] }],
+    });
+    if (!appointment) return res.status(404).json({ message: 'Appointment not found' });
+
+    // Nothing to prepare for a visit that has already happened or been called
+    // off, and asking would only confuse the patient.
+    if (appointment.status !== 'scheduled') {
+      return res.status(409).json({
+        message: `Intake is for an upcoming visit, and this one is ${appointment.status}`,
+      });
+    }
+
+    const existing = await IntakeSubmission.findOne({ appointmentId });
+    if (existing) {
+      return res.status(409).json({ message: 'This patient has already filled in their form' });
+    }
+
+    const message = req.body.message ? String(req.body.message).trim() : null;
+
+    const intakeRequest = await IntakeRequest.findOneAndUpdate(
+      { appointmentId },
+      {
+        appointmentId,
+        patientId: appointment.patientId,
+        requestedBy: req.user.id,
+        message,
+        fulfilledAt: null,
+      },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+
+    const account = appointment.Patient?.User;
+    const when = formatWhen(appointment.scheduledAt);
+
+    // Told in the app, and by email where mail is configured. Neither failing
+    // should lose the request itself, which is already saved by this point.
+    notify({
+      userId: account?.id,
+      kind: 'intake-requested',
+      title: 'Your clinic would like some details before your visit',
+      body: message || `Please fill in your intake form for your appointment on ${when}.`,
+      link: '/patient/appointments',
+    }).catch(() => {});
+
+    sendMail({
+      to: account?.email,
+      subject: 'Before your IntelliCare appointment',
+      text: [
+        `Hello ${account?.name || 'there'},`,
+        '',
+        message ||
+          'Your clinic would like a few details before your visit, so your clinician can',
+        message ? '' : 'prepare for it.',
+        '',
+        `Appointment: ${when}`,
+        '',
+        'Sign in and open the appointment to fill in your intake form.',
+      ].join('\n'),
+    }).catch(() => {});
+
+    res.status(201).json({
+      success: true,
+      request: {
+        appointmentId: intakeRequest.appointmentId,
+        message: intakeRequest.message,
+        requestedAt: intakeRequest.createdAt,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// What a patient still has to fill in. Read by their own dashboard, so it is
+// scoped to them from the token rather than from anything they send.
+const outstandingForMe = async (req, res, next) => {
+  try {
+    const profile = await patientProfileFor(req.user);
+    if (!profile) return res.json({ success: true, outstanding: [] });
+
+    const requests = await IntakeRequest.find({
+      patientId: profile.id,
+      fulfilledAt: null,
+    }).sort({ createdAt: -1 });
+
+    if (requests.length === 0) return res.json({ success: true, outstanding: [] });
+
+    // A request for a visit that has since been cancelled or has already
+    // happened is not something to chase, so the appointment decides whether it
+    // still counts.
+    const appointments = await Appointment.findAll({
+      where: { id: { [Op.in]: requests.map((r) => r.appointmentId) }, status: 'scheduled' },
+      include: [{ model: User, as: 'clinician', attributes: ['name'] }],
+    });
+    const byId = new Map(appointments.map((a) => [a.id, a]));
+
+    const outstanding = requests
+      .filter((r) => byId.has(r.appointmentId))
+      .map((r) => {
+        const visit = byId.get(r.appointmentId);
+        return {
+          appointmentId: r.appointmentId,
+          message: r.message,
+          requestedAt: r.createdAt,
+          scheduledAt: visit.scheduledAt,
+          clinicianName: visit.clinician?.name || null,
+          reason: visit.reason,
+        };
+      });
+
+    res.json({ success: true, outstanding });
   } catch (err) {
     next(err);
   }
@@ -130,4 +268,10 @@ const downloadAttachment = async (req, res, next) => {
   }
 };
 
-module.exports = { submit, getForAppointment, downloadAttachment };
+module.exports = {
+  submit,
+  request,
+  outstandingForMe,
+  getForAppointment,
+  downloadAttachment,
+};

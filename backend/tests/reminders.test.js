@@ -13,6 +13,7 @@ const mongoose = require('mongoose');
 
 const { Appointment, Patient, User } = require('../src/models/mysql');
 const ReminderDispatch = require('../src/models/mongodb/ReminderDispatch');
+const ReminderPreference = require('../src/models/mongodb/ReminderPreference');
 const { dispatchDue, findWithinHorizon, messageFor, offsets } = require('../src/services/reminderService');
 const { silenceMail } = require('./helpers');
 
@@ -145,6 +146,81 @@ describe('Appointment reminders', () => {
     assert.deepEqual(sentOffsets, [24, 1], 'inside both horizons, both go out');
   });
 
+  // The schedule used to come from the environment, so every patient in the
+  // clinic was on the same one and none of them could change it. The proposal
+  // asks for it to be configurable in the patient's own account.
+  describe('a patient on their own schedule', () => {
+    after(async () => {
+      await ReminderPreference.deleteMany({ patientId: patient.id });
+    });
+
+    const prefer = (offsetsHours, channels = {}) =>
+      ReminderPreference.findOneAndUpdate(
+        { patientId: patient.id },
+        { patientId: patient.id, offsetsHours, email: true, inApp: true, ...channels },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+
+    it('is reminded when they asked to be, not when the clinic would have', async () => {
+      // Three days out: outside the clinic's 24 hours entirely, inside a
+      // patient's own 72.
+      const soon = await appointmentIn(72 - 2);
+      await prefer([72]);
+
+      await dispatchDue();
+
+      const records = await dispatchesFor(soon);
+      assert.deepEqual(records.map((r) => r.offsetHours), [72]);
+    });
+
+    it('is not reminded at the clinic\'s hours once they have their own', async () => {
+      const soon = await appointmentIn(20);
+      await prefer([72]);
+
+      await dispatchDue();
+
+      const records = await dispatchesFor(soon);
+      assert.ok(
+        !records.some((r) => r.offsetHours === 24 || r.offsetHours === 1),
+        'the clinic default no longer applies to them'
+      );
+    });
+
+    // An empty list is a patient saying "do not remind me", which has to be
+    // different from having expressed no preference at all.
+    it('is not reminded at all when they have turned reminders off', async () => {
+      const soon = await appointmentIn(20);
+      await prefer([]);
+
+      await dispatchDue();
+
+      assert.equal((await dispatchesFor(soon)).length, 0);
+    });
+
+    it('still gets the clinic schedule when they have asked for nothing', async () => {
+      await ReminderPreference.deleteMany({ patientId: patient.id });
+      const soon = await appointmentIn(20);
+
+      await dispatchDue();
+
+      const records = await dispatchesFor(soon);
+      assert.ok(records.length > 0, 'no preference means the clinic default, not silence');
+      assert.ok(records.every((r) => offsets().includes(r.offsetHours)));
+    });
+
+    it('turning email off leaves the in-app reminder alone', async () => {
+      const soon = await appointmentIn(20);
+      await prefer([24], { email: false });
+
+      await dispatchDue();
+
+      const records = await dispatchesFor(soon);
+      assert.equal(records.length, 1);
+      assert.equal(records[0].to, null, 'nothing was addressed');
+      assert.equal(records[0].status, 'skipped', 'and it is recorded as not sent');
+    });
+  });
+
   it('records why a reminder did not go out rather than failing the scan', async () => {
     // Mail is switched off for this suite, so every dispatch should be recorded
     // as skipped with the reason attached, and the scan should still complete.
@@ -156,7 +232,12 @@ describe('Appointment reminders', () => {
     const records = await dispatchesFor(soon);
     assert.equal(records.length, 1);
     assert.equal(records[0].status, 'skipped');
-    assert.equal(records[0].detail, 'no mail provider configured');
+
+    // That a reason was recorded, rather than which one. Mail is off here for
+    // two possible reasons - no provider is configured, or the suite is being
+    // run with NODE_ENV=loadtest - and pinning the wording made the assertion
+    // depend on how the suite happened to be invoked.
+    assert.ok(records[0].detail, 'the reason is recorded alongside the skip');
   });
 
   it('writes a message naming the visit', async () => {

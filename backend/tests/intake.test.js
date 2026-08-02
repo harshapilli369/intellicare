@@ -10,7 +10,7 @@ const { connectMongoDB } = require('../src/config/mongodb');
 const IntakeSubmission = require('../src/models/mongodb/IntakeSubmission');
 const { buildPatientContext } = require('../src/services/clinicalContext');
 
-const { SEEDED, BASE, get, login, requireRunningApi, patientIdFor } = require('./helpers');
+const { SEEDED, BASE, get, post, patch, login, requireRunningApi, patientIdFor } = require('./helpers');
 
 // Sends the form the way a browser does: multipart, with optional files.
 const submitIntake = async (token, appointmentId, answers, files = []) => {
@@ -229,6 +229,154 @@ describe('Patient intake', () => {
 
       assert.ok('patientIntake' in built.context, 'the field is always present');
       assert.equal(built.context.patientIntake, null, 'and says plainly that there was none');
+    });
+  });
+
+  // Intake worked, but only as something a patient volunteered. There was no
+  // way for the clinic to ask, so nothing was ever outstanding and the
+  // dashboard the proposal describes had nothing to put on it.
+  describe('the clinic asking for a form', () => {
+    // A visit of its own, so asking about it cannot disturb the fixtures the
+    // rest of the file shares.
+    const bookOne = async () => {
+      const { json: staff } = await get('/users/clinicians', patient.token);
+      const doc = staff.clinicians[0];
+
+      const when = new Date();
+      when.setDate(when.getDate() + 11);
+      const date = when.toISOString().slice(0, 10);
+
+      const { json: free } = await get(
+        `/appointments/availability?clinicianId=${doc.id}&date=${date}`,
+        patient.token
+      );
+
+      const { json } = await post('/appointments', patient.token, {
+        clinicianId: doc.id,
+        scheduledAt: free.slots[free.slots.length - 1],
+        reason: 'Shoulder pain',
+      });
+      return json.appointment;
+    };
+
+    const outstandingFor = async (token) =>
+      (await get('/intake/outstanding', token)).json.outstanding;
+
+    it('puts the request on the patient dashboard, with the visit and the note', async () => {
+      const visit = await bookOne();
+
+      const asked = await post(`/intake/${visit.id}/request`, clinician.token, {
+        message: 'Please describe the pain before you come in.',
+      });
+      assert.equal(asked.status, 201);
+
+      const mine = (await outstandingFor(patient.token)).find(
+        (o) => o.appointmentId === visit.id
+      );
+
+      assert.ok(mine, 'it is outstanding');
+      assert.equal(mine.message, 'Please describe the pain before you come in.');
+      assert.ok(mine.scheduledAt, 'and says which visit it is for');
+      assert.ok(mine.clinicianName, 'and who is being seen');
+
+      await patch(`/appointments/${visit.id}/cancel`, patient.token);
+    });
+
+    it('tells the patient in the app', async () => {
+      const visit = await bookOne();
+      await post(`/intake/${visit.id}/request`, clinician.token, {});
+
+      const { json } = await get('/notifications', patient.token);
+      assert.ok(
+        json.notifications.some((n) => n.kind === 'intake-requested'),
+        'a notification is raised'
+      );
+
+      await patch(`/appointments/${visit.id}/cancel`, patient.token);
+    });
+
+    it('settles when the patient fills it in', async () => {
+      const visit = await bookOne();
+      await post(`/intake/${visit.id}/request`, clinician.token, {});
+
+      const before = await outstandingFor(patient.token);
+      assert.ok(before.some((o) => o.appointmentId === visit.id));
+
+      await submitIntake(patient.token, visit.id, { mainComplaint: 'A dull ache when lifting.' });
+
+      const after = await outstandingFor(patient.token);
+      assert.ok(
+        !after.some((o) => o.appointmentId === visit.id),
+        'no longer something the clinic is waiting on'
+      );
+
+      await patch(`/appointments/${visit.id}/cancel`, patient.token);
+    });
+
+    it('asking twice nudges rather than asking twice over', async () => {
+      const visit = await bookOne();
+
+      await post(`/intake/${visit.id}/request`, clinician.token, {});
+      assert.equal((await post(`/intake/${visit.id}/request`, clinician.token, {})).status, 201);
+
+      const mine = (await outstandingFor(patient.token)).filter(
+        (o) => o.appointmentId === visit.id
+      );
+      assert.equal(mine.length, 1);
+
+      await patch(`/appointments/${visit.id}/cancel`, patient.token);
+    });
+
+    it('will not ask for a form that has already been filled in', async () => {
+      const visit = await bookOne();
+      await submitIntake(patient.token, visit.id, { mainComplaint: 'Already said.' });
+
+      const { status } = await post(`/intake/${visit.id}/request`, clinician.token, {});
+      assert.equal(status, 409);
+
+      await patch(`/appointments/${visit.id}/cancel`, patient.token);
+    });
+
+    it('will not ask about a visit that is not going ahead', async () => {
+      const visit = await bookOne();
+      await patch(`/appointments/${visit.id}/cancel`, patient.token);
+
+      const { status } = await post(`/intake/${visit.id}/request`, clinician.token, {});
+      assert.equal(status, 409, 'nothing to prepare for');
+    });
+
+    it('is the clinic asking, not the patient', async () => {
+      const visit = await bookOne();
+
+      assert.equal((await post(`/intake/${visit.id}/request`, patient.token, {})).status, 403);
+      assert.equal((await post(`/intake/${visit.id}/request`, null, {})).status, 401);
+
+      await patch(`/appointments/${visit.id}/cancel`, patient.token);
+    });
+
+    it("never shows one patient another patient's outstanding forms", async () => {
+      const visit = await bookOne();
+      await post(`/intake/${visit.id}/request`, clinician.token, {});
+
+      const theirs = await outstandingFor(other.token);
+      assert.ok(!theirs.some((o) => o.appointmentId === visit.id));
+
+      // And staff have no such list of their own - it is a patient's view.
+      assert.equal((await get('/intake/outstanding', clinician.token)).status, 403);
+
+      await patch(`/appointments/${visit.id}/cancel`, patient.token);
+    });
+
+    // A request for a visit that has since been called off is not something to
+    // chase, and must not sit on the dashboard for ever.
+    it('drops out of the list when the visit is cancelled', async () => {
+      const visit = await bookOne();
+      await post(`/intake/${visit.id}/request`, clinician.token, {});
+      assert.ok((await outstandingFor(patient.token)).some((o) => o.appointmentId === visit.id));
+
+      await patch(`/appointments/${visit.id}/cancel`, patient.token);
+
+      assert.ok(!(await outstandingFor(patient.token)).some((o) => o.appointmentId === visit.id));
     });
   });
 });

@@ -53,6 +53,15 @@ export const exportPatient = (id, format) =>
 export const invitePatient = (id) =>
   api.post(`/patients/${id}/invitation`).then((r) => r.data.invitation);
 
+// When and how the signed-in patient wants to be reminded. Scoped by the token,
+// so there is no id to pass. Reading it back when nothing has been set returns
+// the clinic's own schedule, flagged as such.
+export const getReminderPreferences = () =>
+  api.get('/patients/me/reminder-preferences').then((r) => r.data.preferences);
+
+export const setReminderPreferences = (preferences) =>
+  api.put('/patients/me/reminder-preferences', preferences).then((r) => r.data.preferences);
+
 // Bulk import from a CSV or JSON file. Returns the per-row report so the
 // caller can show what was inserted and what was rejected, and why.
 export const importPatients = (file) => {
