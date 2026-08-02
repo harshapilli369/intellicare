@@ -3,6 +3,9 @@ const { Op } = require('sequelize');
 
 const { sequelize } = require('../config/mysql');
 const { User, Patient, Appointment, Prescription } = require('../models/mysql');
+const AuditLog = require('../models/mongodb/AuditLog');
+const exportService = require('../services/exportService');
+const importService = require('../services/importService');
 
 // The account columns a patient record is allowed to expose. Never includes the
 // password hash.
@@ -234,4 +237,94 @@ const remove = async (req, res, next) => {
   }
 };
 
-module.exports = { list, getById, create, update, remove };
+// Full chart export: demographics, appointments, prescriptions, notes, and AI
+// summaries, in CSV, JSON, or PDF. Access is enforced upstream — staff export
+// any patient, a patient only their own (requireOwnPatient on the route) —
+// this only decides what the file contains and records that it happened.
+const exportChart = async (req, res, next) => {
+  try {
+    const patientId = Number(req.params.id);
+    const format = (req.query.format || 'json').toLowerCase();
+
+    if (!['csv', 'json', 'pdf'].includes(format)) {
+      return res.status(400).json({ message: 'format must be csv, json, or pdf' });
+    }
+
+    // Raw clinical notes and the clinician-facing side of a summary are staff
+    // material; a printable PDF is likewise a staff tool for handing someone a
+    // physical copy, not something a patient's self-service export produces.
+    const isStaff = req.user.role === 'clinician' || req.user.role === 'admin';
+    if (format === 'pdf' && !isStaff) {
+      return res.status(403).json({ message: 'PDF export is available to clinicians and admins' });
+    }
+
+    const chart = await exportService.buildChart(patientId, { includeClinicalNotes: isStaff });
+    if (!chart) return res.status(404).json({ message: 'Patient not found' });
+
+    await AuditLog.create({
+      action: 'export',
+      patientId,
+      performedBy: req.user.id,
+      performedByRole: req.user.role,
+      format,
+      detail: {
+        appointments: chart.appointments.length,
+        prescriptions: chart.prescriptions.length,
+        notes: chart.notes.length,
+        summaries: chart.summaries.length,
+      },
+    });
+
+    const filename = `patient-${patientId}-chart.${format}`;
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    if (format === 'json') {
+      res.setHeader('Content-Type', 'application/json');
+      return res.send(exportService.toJSON(chart));
+    }
+
+    if (format === 'csv') {
+      res.setHeader('Content-Type', 'text/csv');
+      return res.send(exportService.toCSV(chart));
+    }
+
+    res.setHeader('Content-Type', 'application/pdf');
+    const doc = exportService.toPDF(chart);
+    return doc.pipe(res);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Bulk create from an uploaded CSV or JSON file. Every row is validated and
+// reported on individually — a file that is mostly good still imports the
+// good rows, with the bad ones named by line number rather than aborting the
+// whole batch.
+const importPatients = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'Upload a CSV or JSON file under the "file" field' });
+    }
+
+    const format = req.file.originalname.toLowerCase().endsWith('.json') ? 'json' : 'csv';
+
+    let rows;
+    try {
+      rows = importService.parseRows(req.file.buffer, format);
+    } catch (err) {
+      return res.status(400).json({ message: err.message });
+    }
+
+    if (rows.length === 0) {
+      return res.status(400).json({ message: 'That file has no rows to import' });
+    }
+
+    const summary = await importService.importPatients(rows);
+
+    res.json({ success: true, ...summary });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { list, getById, create, update, remove, exportChart, importPatients };
