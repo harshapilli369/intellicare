@@ -204,8 +204,24 @@ describe('Clinician dashboard', () => {
       assert.deepEqual(keys, ['id', 'name'], 'no email, no hash, no role');
     });
 
-    it('is closed to patients', async () => {
-      assert.equal((await get('/users/clinicians', patient.token)).status, 403);
+    // A patient chooses who to book with, so the picker has to reach them. It
+    // was staff-only, which left the booking screen unable to name a single
+    // clinician and so unable to offer a time at all.
+    it('is available to a patient, who books their own visits', async () => {
+      const { status, json } = await get('/users/clinicians', patient.token);
+      assert.equal(status, 200);
+      assert.ok(json.clinicians.length > 0, 'a patient can see who to book with');
+    });
+
+    it('tells a patient no more than it tells staff', async () => {
+      const mine = (await get('/users/clinicians', patient.token)).json.clinicians;
+      const theirs = (await get('/users/clinicians', admin.token)).json.clinicians;
+
+      assert.deepEqual(Object.keys(mine[0]).sort(), ['id', 'name'], 'no email, no hash, no role');
+      assert.deepEqual(mine, theirs, 'the same picker, not a privileged view');
+    });
+
+    it('is closed to anyone not signed in', async () => {
       assert.equal((await get('/users/clinicians', null)).status, 401);
     });
   });
