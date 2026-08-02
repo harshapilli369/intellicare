@@ -77,9 +77,19 @@ const getCachedSummary = async (appointmentId) => {
   return AISummary.findOne({ appointmentId });
 };
 
+// A stored summary is only reusable while the information it was written from
+// is unchanged, which is what the input hash records. A patient who submits an
+// intake form after a brief was generated, or a note written since, must not
+// leave the clinician reading something that predates it.
+//
+// A finalized summary is exempt: the clinician has read and approved that text,
+// and regenerating over their decision would discard it.
+const isStillCurrent = (existing, context) =>
+  existing.finalized || existing.inputHash === AISummary.hashInput(context);
+
 const generatePreSummary = async ({ patientId, appointmentId, context }) => {
   const existing = await getCachedSummary(appointmentId);
-  if (existing?.preSummary) {
+  if (existing?.preSummary && isStillCurrent(existing, context)) {
     return { summary: existing.preSummary, cached: true };
   }
 
@@ -97,7 +107,7 @@ const generatePreSummary = async ({ patientId, appointmentId, context }) => {
 
 const generatePostSummary = async ({ patientId, appointmentId, context }) => {
   const existing = await getCachedSummary(appointmentId);
-  if (existing?.clinicianSummary && existing?.patientSummary) {
+  if (existing?.clinicianSummary && existing?.patientSummary && isStillCurrent(existing, context)) {
     return {
       clinicianSummary: existing.clinicianSummary,
       patientSummary: existing.patientSummary,
