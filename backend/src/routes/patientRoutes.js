@@ -21,7 +21,10 @@ router.use(authenticate);
 // own rules for the ones it additionally requires.
 const demographics = [
   body('phone').optional().isString().trim(),
-  body('dateOfBirth').optional().isISO8601(),
+  // Strict, so a birthday that never happened - the 31st of a thirty-day month,
+  // the 29th of a February with 28 - is refused rather than silently kept as the
+  // day before it.
+  body('dateOfBirth').optional().isISO8601({ strict: true }),
   body('sex').optional().isIn(['Male', 'Female', 'Other']),
   body('address').optional().isString().trim(),
   body('healthCardNumber').optional().isString().trim().isLength({ max: 40 }),
