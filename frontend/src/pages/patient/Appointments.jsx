@@ -38,6 +38,112 @@ const STATUS_STYLE = {
 };
 const STATUS_LABEL = { completed: 'Completed', cancelled: 'Cancelled', no_show: 'Missed' };
 
+// One appointment, and the reschedule panel when it is the one being moved.
+//
+// Declared here rather than inside the page. A component defined during a
+// render is a new type on every render, so React throws the whole subtree away
+// and builds it again instead of updating it - which loses focus, closes the
+// open date picker, and makes the list flash on every keystroke.
+const AppointmentCard = ({
+  appointment,
+  actionable,
+  busy,
+  moving,
+  movingDate,
+  slots,
+  onIntake,
+  onStartMove,
+  onCancel,
+  onPickDate,
+  onMoveTo,
+  onStopMoving,
+}) => (
+  <li className="card">
+    <div className="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-lg font-bold text-slate-900">{appointment.clinicianName}</p>
+          {appointment.status !== 'scheduled' && (
+            <span
+              className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                STATUS_STYLE[appointment.status]
+              }`}
+            >
+              {STATUS_LABEL[appointment.status]}
+            </span>
+          )}
+        </div>
+        <p className="mt-0.5 text-sm text-brand">{appointment.reason || 'No reason recorded'}</p>
+        <p className="mt-1 text-sm text-slate-600">{formatWhen(appointment.scheduledAt)}</p>
+      </div>
+
+      {actionable && (
+        <div className="flex flex-wrap gap-3">
+          {/* Telling the clinic what is wrong before arriving. */}
+          <button type="button" onClick={() => onIntake(appointment)} className="btn-primary">
+            Intake form
+          </button>
+          <button
+            type="button"
+            onClick={() => onStartMove(appointment)}
+            disabled={busy}
+            className="btn-outline"
+          >
+            Reschedule
+          </button>
+          <button
+            type="button"
+            onClick={() => onCancel(appointment)}
+            disabled={busy}
+            className="btn-outline"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+    </div>
+
+    {moving && (
+      <div className="mt-5 border-t border-slate-100 pt-5">
+        <label className="block">
+          <span className="text-sm font-medium text-slate-700">Move to</span>
+          <input
+            type="date"
+            value={movingDate}
+            onChange={(event) => onPickDate(event.target.value)}
+            className="mt-1 rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand"
+          />
+        </label>
+
+        {slots.length === 0 ? (
+          <p className="mt-3 text-sm text-slate-500">Nothing free that day.</p>
+        ) : (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {slots.map((free) => (
+              <button
+                key={free}
+                type="button"
+                onClick={() => onMoveTo(free)}
+                className="rounded-md bg-brand-50 px-3 py-1.5 text-sm text-brand transition hover:bg-brand-50/70"
+              >
+                {formatSlot(free)}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={onStopMoving}
+          className="mt-4 text-sm text-slate-500 hover:underline"
+        >
+          Never mind
+        </button>
+      </div>
+    )}
+  </li>
+);
+
 const PatientAppointments = () => {
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -123,98 +229,20 @@ const PatientAppointments = () => {
   );
   const rest = appointments.filter((a) => !upcoming.includes(a));
 
-  const Card = ({ appointment, actionable }) => (
-    <li className="card">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-lg font-bold text-slate-900">{appointment.clinicianName}</p>
-            {appointment.status !== 'scheduled' && (
-              <span
-                className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                  STATUS_STYLE[appointment.status]
-                }`}
-              >
-                {STATUS_LABEL[appointment.status]}
-              </span>
-            )}
-          </div>
-          <p className="mt-0.5 text-sm text-brand">
-            {appointment.reason || 'No reason recorded'}
-          </p>
-          <p className="mt-1 text-sm text-slate-600">{formatWhen(appointment.scheduledAt)}</p>
-        </div>
-
-        {actionable && (
-          <div className="flex flex-wrap gap-3">
-            {/* Telling the clinic what is wrong before arriving. */}
-            <button
-              type="button"
-              onClick={() => setIntakeFor(appointment)}
-              className="btn-primary"
-            >
-              Intake form
-            </button>
-            <button
-              type="button"
-              onClick={() => startMove(appointment)}
-              disabled={busyId === appointment.id}
-              className="btn-outline"
-            >
-              Reschedule
-            </button>
-            <button
-              type="button"
-              onClick={() => cancel(appointment)}
-              disabled={busyId === appointment.id}
-              className="btn-outline"
-            >
-              Cancel
-            </button>
-          </div>
-        )}
-      </div>
-
-      {moving?.id === appointment.id && (
-        <div className="mt-5 border-t border-slate-100 pt-5">
-          <label className="block">
-            <span className="text-sm font-medium text-slate-700">Move to</span>
-            <input
-              type="date"
-              value={movingDate}
-              onChange={(event) => setMovingDate(event.target.value)}
-              className="mt-1 rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand"
-            />
-          </label>
-
-          {slots.length === 0 ? (
-            <p className="mt-3 text-sm text-slate-500">Nothing free that day.</p>
-          ) : (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {slots.map((free) => (
-                <button
-                  key={free}
-                  type="button"
-                  onClick={() => moveTo(free)}
-                  className="rounded-md bg-brand-50 px-3 py-1.5 text-sm text-brand transition hover:bg-brand-50/70"
-                >
-                  {formatSlot(free)}
-                </button>
-              ))}
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={() => setMoving(null)}
-            className="mt-4 text-sm text-slate-500 hover:underline"
-          >
-            Never mind
-          </button>
-        </div>
-      )}
-    </li>
-  );
+  // The wiring every card needs. Gathered once rather than written out twice.
+  const cardProps = (appointment) => ({
+    appointment,
+    busy: busyId === appointment.id,
+    moving: moving?.id === appointment.id,
+    movingDate,
+    slots,
+    onIntake: setIntakeFor,
+    onStartMove: startMove,
+    onCancel: cancel,
+    onPickDate: setMovingDate,
+    onMoveTo: moveTo,
+    onStopMoving: () => setMoving(null),
+  });
 
   return (
     <div className="max-w-3xl">
@@ -234,7 +262,7 @@ const PatientAppointments = () => {
       ) : (
         <ul className="mt-3 space-y-4">
           {upcoming.map((appointment) => (
-            <Card key={appointment.id} appointment={appointment} actionable />
+            <AppointmentCard key={appointment.id} {...cardProps(appointment)} actionable />
           ))}
         </ul>
       )}
@@ -245,7 +273,7 @@ const PatientAppointments = () => {
       ) : (
         <ul className="mt-3 space-y-4">
           {rest.map((appointment) => (
-            <Card key={appointment.id} appointment={appointment} actionable={false} />
+            <AppointmentCard key={appointment.id} {...cardProps(appointment)} actionable={false} />
           ))}
         </ul>
       )}
