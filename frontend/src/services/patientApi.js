@@ -19,6 +19,11 @@ export const updatePatient = (id, payload) =>
 
 export const deletePatient = (id) => api.delete(`/patients/${id}`).then((r) => r.data);
 
+// A patient correcting how the clinic reaches them. A different endpoint from
+// `updatePatient`, which is an administrator's and accepts clinical fields.
+export const updateOwnContactDetails = (id, { phone, address }) =>
+  api.put(`/patients/${id}/contact-details`, { phone, address }).then((r) => r.data.patient);
+
 const FILENAME_RE = /filename="?([^"]+)"?/;
 
 // Downloads a patient's chart in the given format and saves it through the

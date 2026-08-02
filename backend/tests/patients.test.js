@@ -242,4 +242,94 @@ describe('Patients', () => {
       assert.equal((await get(`/patients/${id}`, clinician.token)).status, 404);
     });
   });
+
+  // A patient could not correct so much as a phone number: every route onto
+  // their own record was an administrator's. What they may change is how the
+  // clinic reaches them; what identifies them at reception, and everything
+  // clinical, stays with staff.
+  describe('a patient putting their own details right', () => {
+    let patient;
+    let mineId;
+    let original;
+
+    before(async () => {
+      patient = await login(SEEDED.patient);
+      mineId = await patientIdFor(clinician.token, 'Elias Tobias');
+      original = (await get(`/patients/${mineId}`, patient.token)).json.patient;
+    });
+
+    const restore = () =>
+      put(`/patients/${mineId}/contact-details`, patient.token, {
+        phone: original.phone,
+        address: original.address,
+      });
+
+    it('changes their phone and address', async () => {
+      const { status, json } = await put(`/patients/${mineId}/contact-details`, patient.token, {
+        phone: '9025550123',
+        address: '17 Barrington Street, Halifax',
+      });
+
+      assert.equal(status, 200);
+      assert.equal(json.patient.phone, '9025550123');
+      assert.equal(json.patient.address, '17 Barrington Street, Halifax');
+
+      await restore();
+    });
+
+    // The endpoint never reads these from the body, so sending them is not
+    // rejected - it simply has no effect. That is the point: there is no
+    // whitelist here to fall out of step with the fields on the model.
+    it('ignores clinical and identifying fields sent alongside', async () => {
+      const { status, json } = await put(`/patients/${mineId}/contact-details`, patient.token, {
+        phone: '9025550124',
+        name: 'Someone Else',
+        healthCardNumber: 'FORGED-0001',
+        dateOfBirth: '1900-01-01',
+        medicalHistory: ['Invented condition'],
+      });
+
+      assert.equal(status, 200);
+      assert.equal(json.patient.name, original.name);
+      assert.equal(json.patient.healthCardNumber, original.healthCardNumber);
+      assert.equal(json.patient.dateOfBirth, original.dateOfBirth);
+      assert.deepEqual(json.patient.medicalHistory, original.medicalHistory);
+
+      await restore();
+    });
+
+    it("cannot reach the administrator's wider update at all", async () => {
+      const { status } = await put(`/patients/${mineId}`, patient.token, {
+        healthCardNumber: 'FORGED-0002',
+      });
+      assert.equal(status, 403, 'refused by role, not filtered by field');
+    });
+
+    it("cannot touch another patient's details", async () => {
+      const otherId = await patientIdFor(clinician.token, 'Sam Smith');
+      const { status } = await put(`/patients/${otherId}/contact-details`, patient.token, {
+        phone: '9025550999',
+      });
+      assert.equal(status, 403);
+    });
+
+    it('is a patient\'s own route, not one staff use', async () => {
+      const { status } = await put(`/patients/${mineId}/contact-details`, admin.token, {
+        phone: '9025550125',
+      });
+      assert.equal(status, 403, 'staff have the fuller update instead');
+    });
+
+    it('refuses a change that changes nothing', async () => {
+      const { status } = await put(`/patients/${mineId}/contact-details`, patient.token, {});
+      assert.equal(status, 400);
+    });
+
+    it('still requires signing in', async () => {
+      const { status } = await put(`/patients/${mineId}/contact-details`, null, {
+        phone: '9025550126',
+      });
+      assert.equal(status, 401);
+    });
+  });
 });

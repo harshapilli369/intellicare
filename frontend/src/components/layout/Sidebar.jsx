@@ -18,6 +18,7 @@ const LINKS = {
   ],
   patient: [
     { to: '/patient', label: 'Dashboard', end: true },
+    { to: '/patient/details', label: 'Personal Information' },
     { to: '/patient/appointments', label: 'Appointments' },
     { to: '/patient/summaries', label: 'Appointment Reports' },
   ],

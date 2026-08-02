@@ -11,7 +11,7 @@ const mongoose = require('mongoose');
 // the link the ability to set a password on it.
 const auditLogSchema = new mongoose.Schema(
   {
-    action: { type: String, enum: ['export', 'import', 'invite'], required: true },
+    action: { type: String, enum: ['export', 'import', 'invite', 'update'], required: true },
     // The patient the action concerns. Absent for a bulk import, which is not
     // about a single patient.
     patientId: { type: Number, default: null },

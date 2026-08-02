@@ -222,6 +222,65 @@ const update = async (req, res, next) => {
   }
 };
 
+// What a patient may correct about themselves: how the clinic reaches them.
+//
+// Deliberately its own endpoint rather than a role-gated branch of `update`.
+// The fields a patient must never set - date of birth, sex, health card number,
+// medical history, allergies - are not merely filtered here, they are never
+// read from the body at all. A whitelist inside a shared handler is one
+// forgotten line away from letting a patient rewrite their own chart, and this
+// codebase has already had one flaw of exactly that shape.
+//
+// Identity stays with staff: a name, a birth date and a health card number are
+// what a patient is matched on at reception, so correcting those is a desk
+// conversation, not a form.
+const updateOwnDetails = async (req, res, next) => {
+  try {
+    const patient = await Patient.findByPk(req.params.id);
+    if (!patient) return res.status(404).json({ message: 'Patient not found' });
+
+    const { phone, address } = req.body;
+    if (phone === undefined && address === undefined) {
+      return res.status(400).json({ message: 'Send a phone number or an address to change' });
+    }
+
+    const before = { phone: null, address: patient.address };
+
+    if (address !== undefined) patient.address = address;
+    await patient.save();
+
+    if (phone !== undefined) {
+      const user = await User.findByPk(patient.userId);
+      if (user) {
+        before.phone = user.phone;
+        user.phone = phone;
+        await user.save();
+      }
+    }
+
+    // A patient changing their own record is as worth recording as staff
+    // exporting it, and for the same reason: somebody may need to know later
+    // who changed what.
+    await AuditLog.create({
+      action: 'update',
+      patientId: patient.id,
+      performedBy: req.user.id,
+      performedByRole: req.user.role,
+      detail: {
+        fields: Object.keys({ ...(phone !== undefined && { phone }), ...(address !== undefined && { address }) }),
+        before,
+      },
+    });
+
+    const saved = await Patient.findByPk(patient.id, {
+      include: { model: User, attributes: USER_FIELDS },
+    });
+    res.json({ success: true, patient: shape(saved) });
+  } catch (err) {
+    next(err);
+  }
+};
+
 const remove = async (req, res, next) => {
   try {
     const patient = await Patient.findByPk(req.params.id);
@@ -378,6 +437,7 @@ module.exports = {
   getById,
   create,
   update,
+  updateOwnDetails,
   remove,
   exportChart,
   importPatients,
