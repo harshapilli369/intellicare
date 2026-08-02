@@ -137,8 +137,17 @@ const BookAppointment = () => {
 
         <h2 className="mt-8 text-xl font-bold text-slate-900">Select Hour</h2>
 
-        {loadingSlots && <p className="mt-3 text-sm text-slate-500">Checking the diary...</p>}
-        {!loadingSlots && slots.length === 0 && (
+        {/* With nobody to book with there is no day to report on, and saying
+            the day is full would not be true. */}
+        {!clinicianId && (
+          <p className="mt-3 text-sm text-slate-500">
+            No clinician is available to book with just now. Please try again shortly.
+          </p>
+        )}
+        {clinicianId && loadingSlots && (
+          <p className="mt-3 text-sm text-slate-500">Checking the diary...</p>
+        )}
+        {clinicianId && !loadingSlots && slots.length === 0 && (
           <p className="mt-3 text-sm text-slate-500">Nothing free that day. Try another date.</p>
         )}
 
