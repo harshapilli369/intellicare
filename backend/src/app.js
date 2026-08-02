@@ -4,7 +4,6 @@ const express = require('express');
 const compression = require('compression');
 const cors = require('cors');
 const helmet = require('helmet');
-const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 
 const { connectMySQL } = require('./config/mysql');
@@ -21,6 +20,8 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 const userRoutes = require('./routes/userRoutes');
 const aiRoutes = require('./routes/aiRoutes');
 const errorHandler = require('./middleware/errorHandler');
+const requestLogger = require('./middleware/requestLogger');
+const logger = require('./config/logger');
 const reminderJob = require('./jobs/reminderJob');
 
 const app = express();
@@ -114,7 +115,11 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(morgan('dev'));
+// Structured request logging, with an id per request. Placed before the routes
+// so `req.log` and `req.id` exist everywhere, and before the rate limiter so a
+// throttled request is still recorded - a burst of 429s is exactly the thing
+// somebody needs to be able to see.
+app.use(requestLogger);
 
 // Only the configured frontend may call the API with credentials. An absent
 // CLIENT_URL would otherwise make `cors` reflect whatever origin asked, which
@@ -176,12 +181,11 @@ const checkConfiguration = () => {
   // Not fatal - it is a legitimate way to run the test suite - but it must never
   // pass unremarked, since it turns the rate limiting off.
   if (process.env.NODE_ENV === 'loadtest') {
-    console.warn('Running with rate limiting disabled (NODE_ENV=loadtest). Not for deployment.');
+    logger.warn('running with rate limiting disabled (NODE_ENV=loadtest), not for deployment');
   }
 
   if (problems.length > 0) {
-    console.error('Refusing to start:');
-    problems.forEach((problem) => console.error(`  - ${problem}`));
+    logger.fatal({ problems }, 'refusing to start');
     process.exit(1);
   }
 };
@@ -194,13 +198,28 @@ async function start() {
     await syncModels();
     await connectMongoDB();
   } catch (err) {
-    console.error(`Database connection failed: ${err.message}`);
+    logger.fatal({ err: { message: err.message, stack: err.stack } }, 'database connection failed');
     process.exit(1);
   }
   // Started after the databases are up, since the first scan reads both.
   reminderJob.start();
 
-  app.listen(PORT, () => console.log(`IntelliCare API running on port ${PORT}`));
+  app.listen(PORT, () => logger.info({ port: PORT, env: process.env.NODE_ENV }, 'API listening'));
 }
+
+// A rejected promise nobody handled, or a thrown error nobody caught, would
+// otherwise take the process down with nothing written about why. Logged first,
+// then allowed to exit: a process in an unknown state should not keep serving,
+// and the host will restart it.
+process.on('unhandledRejection', (reason) => {
+  logger.fatal({ err: { message: String(reason?.message || reason), stack: reason?.stack } },
+    'unhandled promise rejection');
+  process.exit(1);
+});
+
+process.on('uncaughtException', (err) => {
+  logger.fatal({ err: { message: err.message, stack: err.stack } }, 'uncaught exception');
+  process.exit(1);
+});
 
 start();

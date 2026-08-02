@@ -1,5 +1,9 @@
 const nodemailer = require('nodemailer');
 
+const logger = require('../config/logger');
+
+const log = logger.child({ service: 'email' });
+
 let transport;
 
 // Two ways out, chosen by what is configured.
@@ -108,22 +112,27 @@ const sendMail = async ({ to, subject, text }) => {
 
   if (!mailConfigured()) {
     const why = underTest() ? 'mail is off under test' : 'no mail provider configured';
-    console.log(`[email skipped: ${why}] to=${to} subject="${subject}"`);
+    log.debug({ to, subject, reason: why }, 'email skipped');
     return { status: 'skipped', detail: why };
   }
 
   const from = sender();
   if (!from) {
-    console.log(`[email skipped: no sender address configured] to=${to}`);
+    log.warn({ to }, 'email skipped: no sender address configured');
     return { status: 'skipped', detail: 'no sender address configured' };
   }
 
   const deliver = brevoConfigured() ? viaBrevo : viaSmtp;
 
   try {
-    return await deliver({ to, subject, text, from });
+    const result = await deliver({ to, subject, text, from });
+    log.info({ to, subject, via: brevoConfigured() ? 'brevo' : 'smtp' }, 'email sent');
+    return result;
   } catch (err) {
-    console.error(`Email to ${to} failed: ${err.message}`);
+    // Reported, not thrown - a caller sending in bulk records the outcome per
+    // recipient and carries on. Logged at error because a message that did not
+    // arrive is something somebody needs to know about.
+    log.error({ to, subject, err: { message: err.message } }, 'email failed');
     return { status: 'failed', detail: err.message };
   }
 };

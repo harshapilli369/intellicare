@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { toast } from 'react-toastify';
 
 import AppointmentNotes from '../../components/notes/AppointmentNotes';
 import PrescribeDialog from '../../components/prescriptions/PrescribeDialog';
 import EditPatientDialog from '../../components/patients/EditPatientDialog';
 import ExportMenu from '../../components/patients/ExportMenu';
+import LoadError from '../../components/common/LoadError';
 import InviteButton from '../../components/patients/InviteButton';
 import PatientInfoCard from '../../components/patients/PatientInfoCard';
 import PreviousAppointments from '../../components/patients/PreviousAppointments';
@@ -36,6 +36,7 @@ const PatientDetail = () => {
 
   const [patient, setPatient] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   // The appointment whose notes are open, if any.
   const [notesFor, setNotesFor] = useState(null);
   const [prescribing, setPrescribing] = useState(false);
@@ -44,19 +45,22 @@ const PatientDetail = () => {
   const isClinician = user?.role === 'clinician';
   const base = user?.role === 'admin' ? '/admin' : '/clinician';
 
+  // Bumped to ask for the record again. A failed read is usually transient -
+  // a sleeping instance, a dropped connection - so the recovery path is simply
+  // to try once more rather than to send the user back to the directory.
+  const [attempt, setAttempt] = useState(0);
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setError(null);
 
     getPatient(id)
       .then((res) => {
         if (!cancelled) setPatient(res);
       })
       .catch((err) => {
-        if (cancelled) return;
-        toast.error(
-          err.response?.status === 404 ? 'That patient does not exist' : 'Could not load the patient'
-        );
+        if (!cancelled) setError(err);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -65,10 +69,30 @@ const PatientDetail = () => {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, attempt]);
 
   if (loading) return <p className="text-sm text-slate-500">Loading patient...</p>;
-  if (!patient) return <p className="text-sm text-slate-500">Patient not found.</p>;
+
+  // Says what went wrong and offers the way out, rather than a toast that
+  // vanishes over an empty screen indistinguishable from a patient with no
+  // record at all.
+  if (error || !patient) {
+    return (
+      <div className="mx-auto max-w-xl">
+        <Link to={`${base}/patients`} className="text-sm text-brand hover:underline">
+          &larr; Back to patients
+        </Link>
+        <div className="mt-4">
+          <LoadError
+            what="this patient's record"
+            error={error}
+            onRetry={() => setAttempt((n) => n + 1)}
+            retrying={loading}
+          />
+        </div>
+      </div>
+    );
+  }
 
   // The API returns visits newest first, so the most recent one is the head.
   const appointments = patient.appointments || [];
