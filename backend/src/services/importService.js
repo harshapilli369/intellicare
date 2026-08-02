@@ -91,6 +91,73 @@ const validateRow = (row) => {
 // password through their link, which is the point.
 const unusablePassword = () => crypto.randomBytes(32).toString('base64url');
 
+// Columns a row may carry that live on the patient's profile, and how to read
+// each one out of a cell. A column absent from the file is left alone rather
+// than blanked - a file exported with three columns and sent back corrected
+// must not erase everything it did not mention.
+const PROFILE_COLUMNS = {
+  dateOfBirth: (value) => value || null,
+  sex: (value) => value || null,
+  address: (value) => String(value).trim(),
+  healthCardNumber: (value) => String(value).trim(),
+  medicalHistory: toList,
+  allergies: toList,
+};
+
+// Brings an existing patient up to date from a row. Only what the row actually
+// carries is touched.
+//
+// Never the password: a file is not where a password change belongs, and a
+// patient who has already set their own must not have it overwritten by an
+// administrator re-importing a spreadsheet. Never the role either - that is
+// what stops a row promoting an account.
+const updateExisting = async ({ userId, patientId }, row) => {
+  const transaction = await sequelize.transaction();
+  const changed = [];
+
+  try {
+    const user = await User.findByPk(userId, { transaction });
+
+    if (row.name !== undefined && String(row.name).trim() !== user.name) {
+      user.name = String(row.name).trim();
+      changed.push('name');
+    }
+    if (row.phone !== undefined && String(row.phone).trim() !== (user.phone || '')) {
+      user.phone = String(row.phone).trim() || null;
+      changed.push('phone');
+    }
+    if (changed.length > 0) await user.save({ transaction });
+
+    // A patient account with no profile row is possible for anyone registered
+    // through public sign-up, so the profile is created rather than assumed.
+    let patient = patientId
+      ? await Patient.findByPk(patientId, { transaction })
+      : await Patient.findOne({ where: { userId }, transaction });
+
+    if (!patient) {
+      patient = await Patient.create({ userId }, { transaction });
+      changed.push('profile');
+    }
+
+    for (const [column, read] of Object.entries(PROFILE_COLUMNS)) {
+      if (row[column] === undefined || row[column] === '') continue;
+
+      const value = read(row[column]);
+      if (JSON.stringify(patient[column]) !== JSON.stringify(value)) {
+        patient[column] = value;
+        changed.push(column);
+      }
+    }
+    await patient.save({ transaction });
+
+    await transaction.commit();
+    return { patientId: patient.id, changed };
+  } catch (err) {
+    if (!transaction.finished) await transaction.rollback();
+    throw err;
+  }
+};
+
 // Imports a parsed list of rows. Every row is validated first so line numbers
 // in the report line up with the source file regardless of what fails later;
 // duplicate emails — within the file and against existing accounts — are
@@ -101,10 +168,27 @@ const unusablePassword = () => crypto.randomBytes(32).toString('base64url');
 const importPatients = async (rows) => {
   const seenEmails = new Map(); // lowercase email -> first line it appeared on
 
-  const existing = await User.findAll({
-    where: {},
-    attributes: ['email'],
-  }).then((users) => new Set(users.map((u) => u.email.toLowerCase())));
+  // Everyone already on the books, so a row can be matched to them. Keyed on
+  // the address rather than looked up per row, since a file of several hundred
+  // would otherwise be several hundred queries.
+  //
+  // Staff are included on purpose. A row naming a clinician's address is not a
+  // patient to update - it is a mistake, and it needs to read as one rather
+  // than quietly creating a second account or writing patient fields onto a
+  // clinician.
+  const accounts = new Map();
+  const users = await User.findAll({
+    attributes: ['id', 'email', 'role'],
+    include: [{ model: Patient, attributes: ['id'], required: false }],
+  });
+
+  for (const user of users) {
+    accounts.set(user.email.toLowerCase(), {
+      userId: user.id,
+      role: user.role,
+      patientId: user.Patient?.id || null,
+    });
+  }
 
   const results = [];
   // Invitations to send once every row has been dealt with, so mail never sits
@@ -117,10 +201,10 @@ const importPatients = async (rows) => {
     const errors = validateRow(row);
 
     const email = String(row.email || '').trim().toLowerCase();
+    const known = email ? accounts.get(email) : null;
+
     if (email) {
-      if (existing.has(email)) {
-        errors.push({ field: 'email', message: 'A user with this email already exists' });
-      } else if (seenEmails.has(email)) {
+      if (seenEmails.has(email)) {
         errors.push({
           field: 'email',
           message: `Duplicate of line ${seenEmails.get(email)} in this file`,
@@ -128,10 +212,37 @@ const importPatients = async (rows) => {
       } else {
         seenEmails.set(email, line);
       }
+
+      // An address already in use by staff is not a patient to bring up to
+      // date, and must not become one.
+      if (known && known.role !== 'patient') {
+        errors.push({
+          field: 'email',
+          message: `This address belongs to a staff account (${known.role})`,
+        });
+      }
     }
 
     if (errors.length > 0) {
       results.push({ line, email: row.email || '', status: 'rejected', errors });
+      continue;
+    }
+
+    // A row naming somebody already on the books brings their record up to
+    // date instead of being refused - which is what a file exported, corrected
+    // and sent back is for.
+    if (known) {
+      try {
+        const updated = await updateExisting(known, row);
+        results.push({ line, email: row.email, status: 'updated', ...updated });
+      } catch (err) {
+        results.push({
+          line,
+          email: row.email || '',
+          status: 'rejected',
+          errors: [{ field: null, message: err.message || 'Could not update this patient' }],
+        });
+      }
       continue;
     }
 
@@ -212,11 +323,16 @@ const importPatients = async (rows) => {
     })
   );
 
-  const inserted = results.filter((r) => r.status === 'inserted').length;
+  // Counted from what each row actually became, rather than deriving one from
+  // the others - with three outcomes rather than two, "everything that is not
+  // an insert was rejected" stopped being true.
+  const count = (status) => results.filter((r) => r.status === status).length;
+
   return {
     totalRows: rows.length,
-    inserted,
-    rejected: rows.length - inserted,
+    inserted: count('inserted'),
+    updated: count('updated'),
+    rejected: count('rejected'),
     results,
   };
 };

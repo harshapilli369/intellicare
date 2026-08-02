@@ -105,8 +105,17 @@ const daysFromNow = (days) => {
 
 // Finds the patient profile id behind a seeded patient account, which is not the
 // same number as their user id.
+// Asks the directory for the patient by name rather than reading the first
+// hundred and hoping. A database that has had patients added to it - by a bulk
+// import, or by the suite itself - pushes the seeded ones off that first page,
+// and every test in the file then fails on a missing fixture rather than on
+// anything it was testing.
 const patientIdFor = async (staffToken, name) => {
-  const { json } = await get('/patients?limit=100', staffToken);
+  const { json } = await get(
+    `/patients?search=${encodeURIComponent(name)}&limit=100`,
+    staffToken
+  );
+
   const found = json.patients.find((patient) => patient.name === name);
   if (!found) throw new Error(`Seeded patient "${name}" not found. Has the database been seeded?`);
   return found.id;

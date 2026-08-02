@@ -62,12 +62,27 @@ describe('Patients', () => {
     });
 
     it('filters by sex, and the filter narrows the whole set rather than one page', async () => {
-      const all = await get('/patients?limit=100', clinician.token);
-      const males = all.json.patients.filter((row) => row.sex === 'Male').length;
+      const small = await get('/patients?sex=Male&page=1&limit=2', clinician.token);
+      assert.ok(small.json.patients.every((row) => row.sex === 'Male'));
+      assert.ok(small.json.total >= small.json.patients.length, 'a total beyond the page');
 
-      const filtered = await get('/patients?sex=Male&page=1&limit=2', clinician.token);
-      assert.ok(filtered.json.patients.every((row) => row.sex === 'Male'));
-      assert.equal(filtered.json.total, males);
+      // Walked page by page rather than counting males inside one unfiltered
+      // read. That read is capped at a hundred, so on any database with more
+      // patients than that it stops being "the whole set" and the assertion
+      // starts describing a page instead of the filter.
+      const first = await get('/patients?sex=Male&page=1&limit=100', clinician.token);
+      let counted = 0;
+
+      for (let page = 1; page <= first.json.pages; page += 1) {
+        const { json } = await get(
+          `/patients?sex=Male&page=${page}&limit=100`,
+          clinician.token
+        );
+        assert.ok(json.patients.every((row) => row.sex === 'Male'), 'every page respects it');
+        counted += json.patients.length;
+      }
+
+      assert.equal(counted, first.json.total, 'the reported total is the whole filtered set');
     });
 
     it('combines the filter with the search', async () => {
@@ -230,15 +245,27 @@ describe('Patients', () => {
     });
 
     it('soft deletes, so the record leaves the directory but the row survives', async () => {
-      const created = await post('/patients', admin.token, newPatient());
+      const details = newPatient();
+      const created = await post('/patients', admin.token, details);
       const id = created.json.patient.id;
 
-      const before = (await get('/patients?limit=100', clinician.token)).json.total;
+      // Asked for by name rather than by counting the directory. Other test
+      // files add and remove patients in parallel, so a total read before and
+      // after legitimately moves by more than this one deletion.
+      const findMe = async () => {
+        const { json } = await get(
+          `/patients?search=${encodeURIComponent(details.name)}&limit=100`,
+          clinician.token
+        );
+        return json.patients.some((row) => row.id === id);
+      };
+
+      assert.equal(await findMe(), true, 'in the directory to begin with');
+
       assert.equal((await del(`/patients/${id}`, clinician.token)).status, 403, 'clinicians cannot delete');
       assert.equal((await del(`/patients/${id}`, admin.token)).status, 200);
 
-      const after = (await get('/patients?limit=100', clinician.token)).json.total;
-      assert.equal(before - after, 1);
+      assert.equal(await findMe(), false, 'gone from the directory');
       assert.equal((await get(`/patients/${id}`, clinician.token)).status, 404);
     });
   });

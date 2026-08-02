@@ -18,7 +18,17 @@ let transport;
 const brevoConfigured = () => Boolean(process.env.BREVO_API_KEY);
 const smtpConfigured = () => Boolean(process.env.SMTP_HOST && process.env.SMTP_USER);
 
-const mailConfigured = () => brevoConfigured() || smtpConfigured();
+// The test environment never sends. The suite drives the invitation and
+// reminder paths through the API, so silencing mail in the test process alone
+// achieves nothing - it is this process that would do the sending, to whatever
+// addresses the fixtures happen to use, on a developer's own credentials.
+//
+// `loadtest` already marks this environment for the rate limiters, so there is
+// no second switch to remember. It is set deliberately to run the suite and
+// never in a deployment.
+const underTest = () => process.env.NODE_ENV === 'loadtest';
+
+const mailConfigured = () => !underTest() && (brevoConfigured() || smtpConfigured());
 
 // Long enough for any reachable server, short enough that a caller still gets
 // an answer. Without it, a blocked port costs minutes: an invitation once took
@@ -97,8 +107,9 @@ const sendMail = async ({ to, subject, text }) => {
   if (!to) return { status: 'skipped', detail: 'no address on file' };
 
   if (!mailConfigured()) {
-    console.log(`[email skipped: no mail provider configured] to=${to} subject="${subject}"`);
-    return { status: 'skipped', detail: 'no mail provider configured' };
+    const why = underTest() ? 'mail is off under test' : 'no mail provider configured';
+    console.log(`[email skipped: ${why}] to=${to} subject="${subject}"`);
+    return { status: 'skipped', detail: why };
   }
 
   const from = sender();

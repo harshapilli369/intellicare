@@ -57,9 +57,12 @@ const ImportPatients = () => {
     try {
       const result = await importPatients(file);
       setReport(result);
-      if (result.inserted > 0) {
-        toast.success(`${result.inserted} patient${result.inserted === 1 ? '' : 's'} imported`);
-      }
+      const done = [
+        result.inserted > 0 && `${result.inserted} added`,
+        result.updated > 0 && `${result.updated} updated`,
+      ].filter(Boolean);
+
+      if (done.length > 0) toast.success(done.join(', '));
       if (result.rejected > 0) {
         toast.warn(`${result.rejected} row${result.rejected === 1 ? '' : 's'} could not be imported`);
       }
@@ -81,6 +84,7 @@ const ImportPatients = () => {
   const rows = report?.results || [];
   const rejectedRows = rows.filter((r) => r.status === 'rejected');
   const insertedRows = rows.filter((r) => r.status === 'inserted');
+  const updatedRows = rows.filter((r) => r.status === 'updated');
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -91,7 +95,9 @@ const ImportPatients = () => {
       <div className="mt-4 rounded-2xl border border-slate-300 bg-white p-8">
         <h1 className="text-2xl font-bold text-slate-900">Import Patients</h1>
         <p className="mt-2 text-sm text-slate-500">
-          Upload a CSV or JSON file to add patients in bulk. Each row needs at least a{' '}
+          Upload a CSV or JSON file to add or update patients in bulk. A row whose email is
+          already on file brings that patient up to date; columns the file leaves out are not
+          touched. Each row needs at least a{' '}
           <code className="rounded bg-slate-100 px-1">name</code> and{' '}
           <code className="rounded bg-slate-100 px-1">email</code>; optional columns are{' '}
           <code className="rounded bg-slate-100 px-1">phone</code>,{' '}
@@ -129,14 +135,18 @@ const ImportPatients = () => {
 
         {report && (
           <div className="mt-8">
-            <div className="grid grid-cols-3 gap-4 text-center">
+            <div className="grid grid-cols-2 gap-4 text-center sm:grid-cols-4">
               <div className="rounded-lg bg-slate-50 py-4">
                 <p className="text-2xl font-bold text-slate-900">{report.totalRows}</p>
                 <p className="text-xs uppercase text-slate-500">Rows read</p>
               </div>
               <div className="rounded-lg bg-green-50 py-4">
                 <p className="text-2xl font-bold text-green-700">{report.inserted}</p>
-                <p className="text-xs uppercase text-green-700">Inserted</p>
+                <p className="text-xs uppercase text-green-700">Added</p>
+              </div>
+              <div className="rounded-lg bg-brand-50 py-4">
+                <p className="text-2xl font-bold text-brand">{report.updated ?? 0}</p>
+                <p className="text-xs uppercase text-brand">Updated</p>
               </div>
               <div className="rounded-lg bg-red-50 py-4">
                 <p className="text-2xl font-bold text-red-700">{report.rejected}</p>
@@ -178,10 +188,40 @@ const ImportPatients = () => {
               </div>
             )}
 
+            {updatedRows.length > 0 && (
+              <div className="mt-6">
+                <h2 className="text-sm font-bold uppercase tracking-wide text-slate-900">
+                  Updated rows
+                </h2>
+                <ul className="mt-3 space-y-2">
+                  {updatedRows.slice(0, ROW_LIMIT_SHOWN).map((row) => (
+                    <li
+                      key={row.line}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-brand/30 bg-brand-50/50 px-4 py-2.5 text-sm text-slate-800"
+                    >
+                      <span>
+                        Line {row.line} — {row.email}
+                      </span>
+                      {/* Naming what moved is the difference between "something
+                          happened" and knowing the file did what was intended. */}
+                      <span className="text-xs text-slate-600">
+                        {row.changed?.length ? row.changed.join(', ') : 'nothing to change'}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                {updatedRows.length > ROW_LIMIT_SHOWN && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Showing the first {ROW_LIMIT_SHOWN} of {updatedRows.length} updated rows.
+                  </p>
+                )}
+              </div>
+            )}
+
             {insertedRows.length > 0 && (
               <div className="mt-6">
                 <h2 className="text-sm font-bold uppercase tracking-wide text-slate-900">
-                  Inserted rows
+                  Added rows
                 </h2>
                 <ul className="mt-3 space-y-2">
                   {insertedRows.slice(0, ROW_LIMIT_SHOWN).map((row) => (

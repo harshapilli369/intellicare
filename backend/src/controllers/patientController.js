@@ -392,6 +392,7 @@ const importPatients = async (req, res, next) => {
         filename: req.file.originalname,
         totalRows: summary.totalRows,
         inserted: summary.inserted,
+        updated: summary.updated,
         rejected: summary.rejected,
       },
     });
