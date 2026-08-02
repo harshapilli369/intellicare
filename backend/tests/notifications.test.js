@@ -70,6 +70,27 @@ describe('In-app notifications', () => {
     assert.deepEqual(times, [...times].sort((a, b) => b - a), 'newest first');
   });
 
+  // The heading names the patient; the detail - when the visit is, what it is
+  // for - lives in the body. The bell showed only the heading for a while, so
+  // the API is checked for carrying the part worth reading.
+  it('carries the detail, not just the heading', async () => {
+    await raise({ title: 'A visit was booked', body: 'Chest pain on Friday, August 7 at 2:30 p.m.' });
+
+    const { json } = await get('/notifications', patient.token);
+    const found = json.notifications.find((n) => n.title === 'A visit was booked');
+
+    assert.ok(found, 'the notification comes back');
+    assert.equal(found.body, 'Chest pain on Friday, August 7 at 2:30 p.m.');
+  });
+
+  it('leaves the body null when there is no detail to give', async () => {
+    await raise({ title: 'Nothing more to say' });
+
+    const { json } = await get('/notifications', patient.token);
+    const found = json.notifications.find((n) => n.title === 'Nothing more to say');
+    assert.equal(found.body, null, 'absent rather than an empty string the bell would render');
+  });
+
   it('never shows one account the notifications of another', async () => {
     const mine = await raise({ title: 'Only for the patient' });
 

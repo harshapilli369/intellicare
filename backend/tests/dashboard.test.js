@@ -214,11 +214,24 @@ describe('Clinician dashboard', () => {
     });
 
     it('tells a patient no more than it tells staff', async () => {
-      const mine = (await get('/users/clinicians', patient.token)).json.clinicians;
-      const theirs = (await get('/users/clinicians', admin.token)).json.clinicians;
+      // Read together: other test files register staff in parallel, so two
+      // reads taken apart can legitimately disagree about how many exist.
+      const [mine, theirs] = await Promise.all([
+        get('/users/clinicians', patient.token),
+        get('/users/clinicians', admin.token),
+      ]);
 
-      assert.deepEqual(Object.keys(mine[0]).sort(), ['id', 'name'], 'no email, no hash, no role');
-      assert.deepEqual(mine, theirs, 'the same picker, not a privileged view');
+      const asPatient = mine.json.clinicians;
+      assert.deepEqual(
+        Object.keys(asPatient[0]).sort(),
+        ['id', 'name'],
+        'no email, no hash, no role'
+      );
+      assert.deepEqual(
+        asPatient,
+        theirs.json.clinicians,
+        'the same picker, not a privileged view'
+      );
     });
 
     it('is closed to anyone not signed in', async () => {

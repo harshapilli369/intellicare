@@ -4,6 +4,7 @@ const { sequelize } = require('../config/mysql');
 const { Appointment, Patient, User } = require('../models/mysql');
 const { patientProfileFor } = require('../middleware/ownership');
 const { notify } = require('../services/notificationService');
+const { formatWhen } = require('../utils/datetime');
 const {
   HOLDS_A_SLOT,
   startOfDay,
@@ -183,9 +184,7 @@ const book = async (req, res, next) => {
       userId: clinicianId,
       kind: 'appointment-booked',
       title: `New appointment: ${appointment.Patient?.User?.name}`,
-      body: `${appointment.reason || 'Appointment'} on ${new Date(
-        appointment.scheduledAt
-      ).toLocaleString('en-CA')}`,
+      body: `${appointment.reason || 'Appointment'} on ${formatWhen(appointment.scheduledAt)}`,
       link: '/clinician/appointments',
     }).catch(() => {});
 
@@ -277,7 +276,7 @@ const cancel = async (req, res, next) => {
       userId: saved.clinicianId,
       kind: 'appointment-cancelled',
       title: `Cancelled: ${saved.Patient?.User?.name}`,
-      body: `The visit on ${new Date(saved.scheduledAt).toLocaleString('en-CA')} was cancelled.`,
+      body: `The visit on ${formatWhen(saved.scheduledAt)} was cancelled.`,
       link: '/clinician/appointments',
     }).catch(() => {});
 
