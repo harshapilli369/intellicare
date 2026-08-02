@@ -85,6 +85,43 @@ describe('Screen data', () => {
       assert.ok(Array.isArray(json.summaries));
     });
 
+    // A report used to be headed with the date its summary was written, which
+    // is when the clinician got round to it rather than when the patient was
+    // seen. With no clinician or reason either, two reports were impossible to
+    // tell apart.
+    it('says which visit each report is about', async () => {
+      const { json } = await get(`/ai/patient/${eliasId}/summaries`, patient.token);
+
+      for (const report of json.summaries) {
+        assert.ok(
+          Object.hasOwn(report, 'appointment'),
+          'every report carries the visit it describes'
+        );
+        if (!report.appointment) continue;
+
+        assert.ok(report.appointment.scheduledAt, 'the date the patient was seen');
+        assert.ok(
+          Object.hasOwn(report.appointment, 'clinicianName'),
+          'who they were seen by'
+        );
+        assert.ok(Object.hasOwn(report.appointment, 'reason'), 'what they were seen for');
+      }
+    });
+
+    it('orders reports by the visit, not by when they were written', async () => {
+      const { json } = await get(`/ai/patient/${eliasId}/summaries`, patient.token);
+
+      const when = (report) =>
+        new Date(report.appointment?.scheduledAt || report.createdAt).getTime();
+      const dates = json.summaries.map(when);
+
+      assert.deepEqual(
+        dates,
+        [...dates].sort((a, b) => b - a),
+        'newest visit first, so finalizing an old summary does not push it to the top'
+      );
+    });
+
     it("cannot read another patient's summaries", async () => {
       const otherId = await patientIdFor(clinician.token, 'Sam Smith');
       assert.equal((await get(`/ai/patient/${otherId}/summaries`, patient.token)).status, 403);
