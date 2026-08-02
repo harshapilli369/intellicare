@@ -2,17 +2,41 @@ const nodemailer = require('nodemailer');
 
 let transport;
 
+// Two ways out, chosen by what is configured.
+//
+// SMTP is the obvious one and works fine from a developer machine. It does not
+// work from the deployment: hosts commonly block outbound SMTP to stop their
+// instances being used to send spam, and they block it by swallowing the
+// connection rather than refusing it, so a send hangs until it times out. The
+// symptom is "Connection timeout" and no amount of correcting credentials
+// changes it.
+//
+// So a provider reached over HTTPS is the path that actually delivers from a
+// deployment, since nothing blocks port 443. Brevo is the one configured here.
+// It is chosen ahead of SMTP when its key is present, which leaves local
+// development free to carry on using Gmail.
+const brevoConfigured = () => Boolean(process.env.BREVO_API_KEY);
 const smtpConfigured = () => Boolean(process.env.SMTP_HOST && process.env.SMTP_USER);
 
-// Built once, and only when there is something to build it from. Without SMTP
-// settings the service still works - it reports mail as skipped rather than
-// throwing - so a developer without mail credentials can run the whole app.
-// Somewhere between "slow" and "never": many hosts block outbound SMTP
-// silently, so the connection does not refuse, it hangs. Nodemailer's own
-// defaults are minutes long, which turns a blocked port into a request that
-// appears to have died. Ten seconds is far longer than a reachable server
-// needs and short enough that the caller still gets an answer.
-const TIMEOUT_MS = Number(process.env.SMTP_TIMEOUT_MS) || 10000;
+const mailConfigured = () => brevoConfigured() || smtpConfigured();
+
+// Long enough for any reachable server, short enough that a caller still gets
+// an answer. Without it, a blocked port costs minutes: an invitation once took
+// 120 seconds to answer because nodemailer's own defaults are that patient.
+const TIMEOUT_MS = Number(process.env.MAIL_TIMEOUT_MS) || Number(process.env.SMTP_TIMEOUT_MS) || 10000;
+
+// Who the message comes from. Brevo will only accept a sender that has been
+// verified in the account, so this is configuration rather than a constant.
+const sender = () => {
+  const address = process.env.MAIL_FROM || process.env.SMTP_FROM || process.env.SMTP_USER;
+  if (!address) return null;
+
+  // Accepts either "Name <a@b.c>" or a bare address.
+  const named = /^\s*(.*?)\s*<\s*([^>]+)\s*>\s*$/.exec(address);
+  return named
+    ? { name: named[1] || 'IntelliCare', email: named[2] }
+    : { name: process.env.MAIL_FROM_NAME || 'IntelliCare', email: address };
+};
 
 const getTransport = () => {
   if (!transport) {
@@ -29,28 +53,68 @@ const getTransport = () => {
   return transport;
 };
 
+// An ordinary HTTPS request, which is the whole point of it.
+const viaBrevo = async ({ to, subject, text, from }) => {
+  const abort = AbortSignal.timeout(TIMEOUT_MS);
+
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'api-key': process.env.BREVO_API_KEY,
+      'Content-Type': 'application/json',
+      accept: 'application/json',
+    },
+    body: JSON.stringify({
+      sender: from,
+      to: [{ email: to }],
+      subject,
+      textContent: text,
+    }),
+    signal: abort,
+  });
+
+  if (response.ok) return { status: 'sent', detail: null };
+
+  // Brevo explains a refusal in the body - an unverified sender, a recipient it
+  // will not accept - and that is the part worth recording, not the status code.
+  const body = await response.text().catch(() => '');
+  throw new Error(`Brevo refused it (HTTP ${response.status}): ${body.slice(0, 300)}`);
+};
+
+const viaSmtp = async ({ to, subject, text, from }) => {
+  await getTransport().sendMail({
+    from: from.name ? `${from.name} <${from.email}>` : from.email,
+    to,
+    subject,
+    text,
+  });
+  return { status: 'sent', detail: null };
+};
+
 // Returns what happened rather than throwing, so a caller sending in bulk can
 // record the outcome per recipient and carry on.
 const sendMail = async ({ to, subject, text }) => {
   if (!to) return { status: 'skipped', detail: 'no address on file' };
 
-  if (!smtpConfigured()) {
-    console.log(`[email skipped: SMTP not configured] to=${to} subject="${subject}"`);
-    return { status: 'skipped', detail: 'SMTP not configured' };
+  if (!mailConfigured()) {
+    console.log(`[email skipped: no mail provider configured] to=${to} subject="${subject}"`);
+    return { status: 'skipped', detail: 'no mail provider configured' };
   }
 
+  const from = sender();
+  if (!from) {
+    console.log(`[email skipped: no sender address configured] to=${to}`);
+    return { status: 'skipped', detail: 'no sender address configured' };
+  }
+
+  const deliver = brevoConfigured() ? viaBrevo : viaSmtp;
+
   try {
-    await getTransport().sendMail({
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
-      to,
-      subject,
-      text,
-    });
-    return { status: 'sent', detail: null };
+    return await deliver({ to, subject, text, from });
   } catch (err) {
     console.error(`Email to ${to} failed: ${err.message}`);
     return { status: 'failed', detail: err.message };
   }
 };
 
-module.exports = { sendMail, smtpConfigured };
+module.exports = { sendMail, mailConfigured, smtpConfigured, brevoConfigured };

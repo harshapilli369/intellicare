@@ -14,6 +14,7 @@ const mongoose = require('mongoose');
 const { Appointment, Patient, User } = require('../src/models/mysql');
 const ReminderDispatch = require('../src/models/mongodb/ReminderDispatch');
 const { dispatchDue, findWithinHorizon, messageFor, offsets } = require('../src/services/reminderService');
+const { silenceMail } = require('./helpers');
 
 const hours = (n) => n * 3_600_000;
 
@@ -21,14 +22,13 @@ describe('Appointment reminders', () => {
   let clinician;
   let patient;
   let created = [];
-  let smtpHost;
+  let restoreMail;
 
   before(async () => {
     // Mail is switched off for the duration: these tests drive the dispatcher
-    // directly, and a developer with real SMTP settings should not have the
+    // directly, and a developer with working credentials should not have the
     // suite send messages to the seeded addresses.
-    smtpHost = process.env.SMTP_HOST;
-    delete process.env.SMTP_HOST;
+    restoreMail = silenceMail();
 
     await connectMySQL();
     await connectMongoDB();
@@ -40,7 +40,7 @@ describe('Appointment reminders', () => {
   });
 
   after(async () => {
-    if (smtpHost !== undefined) process.env.SMTP_HOST = smtpHost;
+    restoreMail();
     await sequelize.close();
     await mongoose.disconnect();
   });
@@ -146,7 +146,7 @@ describe('Appointment reminders', () => {
   });
 
   it('records why a reminder did not go out rather than failing the scan', async () => {
-    // SMTP is switched off for this suite, so every dispatch should be recorded
+    // Mail is switched off for this suite, so every dispatch should be recorded
     // as skipped with the reason attached, and the scan should still complete.
     const soon = await appointmentIn(20);
     const tally = await dispatchDue();
@@ -156,7 +156,7 @@ describe('Appointment reminders', () => {
     const records = await dispatchesFor(soon);
     assert.equal(records.length, 1);
     assert.equal(records[0].status, 'skipped');
-    assert.equal(records[0].detail, 'SMTP not configured');
+    assert.equal(records[0].detail, 'no mail provider configured');
   });
 
   it('writes a message naming the visit', async () => {
