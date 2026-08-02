@@ -1,4 +1,5 @@
 require('dotenv').config();
+const zlib = require('zlib');
 const express = require('express');
 const compression = require('compression');
 const cors = require('cors');
@@ -70,27 +71,46 @@ app.use(
 app.use(
   compression({
     threshold: 1024,
-    // A little more effort than the default 6. These payloads are generated
-    // per request rather than served from a cache, but they are small enough
-    // that the extra CPU is under a millisecond and the saving is real.
-    level: 7,
+    // Brotli quality, deliberately low.
+    //
+    // The middleware's default is 11, which is the setting meant for files
+    // compressed once and served many times. These responses are generated per
+    // request, and at 11 the compression cost showed up plainly in the
+    // measurements - a chart export went from 47ms to 66ms while the bytes were
+    // already down by 95%. Quality 4 gives up a little of that saving and hands
+    // back the time.
+    params: {
+      [zlib.constants.BROTLI_PARAM_QUALITY]: 4,
+    },
   })
 );
 
-// Express already puts an ETag on every JSON response, which is what lets a
-// client ask "has this changed?" and be told "no" in a few bytes instead of
-// being sent the whole thing again. Without a Cache-Control directive, though,
-// a browser is left to guess whether to bother asking, and generally does not.
+// Nothing this API returns may be written to a disk cache.
 //
-// `no-cache` does not mean "do not cache" - it means "cache it, but check with
-// me before using it". That is exactly right for clinical data: a stale chart
-// must never be shown, and a revalidation that comes back 304 costs a couple
-// of hundred bytes rather than the hundred kilobytes it replaces.
+// This began as `no-cache`, which permits storing a copy so long as it is
+// revalidated before use - worth a little bandwidth on a repeated read. A
+// baseline scan of the deployment flagged the responses as storable, and on
+// reflection that is the more important point: these are patient charts, and a
+// clinic workstation is a shared machine. A chart left in a browser's on-disk
+// cache outlives the session that fetched it and is readable by whoever sits
+// down next.
 //
-// `private` keeps it out of any shared cache in between, which patient data has
-// no business sitting in.
+// `no-store` forbids writing it down at all. It costs the revalidation saving,
+// which was never large - compression is what made these responses small - and
+// buys back something that actually matters for this kind of data.
 app.use((req, res, next) => {
-  if (req.method === 'GET') res.set('Cache-Control', 'private, no-cache');
+  res.set('Cache-Control', 'no-store');
+  next();
+});
+
+// Switches off browser features this application never uses, so a page served
+// from this origin cannot reach for a camera, a microphone or a location even
+// if something were injected into it.
+app.use((req, res, next) => {
+  res.set(
+    'Permissions-Policy',
+    'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()'
+  );
   next();
 });
 

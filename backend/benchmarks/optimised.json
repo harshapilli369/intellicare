@@ -1,6 +1,6 @@
 {
   "name": "optimised",
-  "takenAt": "2026-08-02T20:45:42.157Z",
+  "takenAt": "2026-08-02T21:42:27.300Z",
   "base": "http://localhost:5000/api",
   "runs": 30,
   "results": [
@@ -9,33 +9,33 @@
       "path": "/patients?limit=10",
       "status": 200,
       "encoding": "br",
-      "bytesOverWire": 457,
-      "bytesOfJson": 2598,
-      "medianMs": 8,
-      "p95Ms": 10.3,
-      "minMs": 6.6
+      "bytesOverWire": 456,
+      "bytesOfJson": 2564,
+      "medianMs": 38.3,
+      "p95Ms": 45.5,
+      "minMs": 26.3
     },
     {
       "label": "patient directory, full page",
       "path": "/patients?limit=100",
       "status": 200,
       "encoding": "br",
-      "bytesOverWire": 2014,
-      "bytesOfJson": 24525,
-      "medianMs": 11.1,
-      "p95Ms": 14.9,
-      "minMs": 9.2
+      "bytesOverWire": 1883,
+      "bytesOfJson": 24915,
+      "medianMs": 33.2,
+      "p95Ms": 57.1,
+      "minMs": 26.6
     },
     {
       "label": "one patient chart",
       "path": "/patients/720",
       "status": 200,
       "encoding": "br",
-      "bytesOverWire": 1026,
-      "bytesOfJson": 11802,
-      "medianMs": 7.7,
-      "p95Ms": 9.8,
-      "minMs": 5.7
+      "bytesOverWire": 1052,
+      "bytesOfJson": 11818,
+      "medianMs": 23.3,
+      "p95Ms": 39.4,
+      "minMs": 20.2
     },
     {
       "label": "clinician dashboard",
@@ -44,9 +44,9 @@
       "encoding": "none",
       "bytesOverWire": 859,
       "bytesOfJson": 859,
-      "medianMs": 10.1,
-      "p95Ms": 14.5,
-      "minMs": 8.6
+      "medianMs": 31.3,
+      "p95Ms": 39.8,
+      "minMs": 25.2
     },
     {
       "label": "admin dashboard",
@@ -55,20 +55,20 @@
       "encoding": "none",
       "bytesOverWire": 855,
       "bytesOfJson": 855,
-      "medianMs": 5.3,
-      "p95Ms": 6.7,
-      "minMs": 4
+      "medianMs": 16.7,
+      "p95Ms": 18.8,
+      "minMs": 13.1
     },
     {
       "label": "appointment list",
       "path": "/appointments",
       "status": 200,
       "encoding": "br",
-      "bytesOverWire": 3495,
-      "bytesOfJson": 92903,
-      "medianMs": 15.7,
-      "p95Ms": 18.9,
-      "minMs": 13.5
+      "bytesOverWire": 4382,
+      "bytesOfJson": 123819,
+      "medianMs": 50.5,
+      "p95Ms": 64.4,
+      "minMs": 44
     },
     {
       "label": "availability for a day",
@@ -77,31 +77,31 @@
       "encoding": "none",
       "bytesOverWire": 497,
       "bytesOfJson": 497,
-      "medianMs": 4.9,
-      "p95Ms": 5.4,
-      "minMs": 3.5
+      "medianMs": 12.4,
+      "p95Ms": 15.1,
+      "minMs": 10.4
     },
     {
       "label": "clinical notes",
       "path": "/notes/patient/720",
       "status": 200,
       "encoding": "br",
-      "bytesOverWire": 2961,
-      "bytesOfJson": 35051,
-      "medianMs": 7.9,
-      "p95Ms": 9.2,
-      "minMs": 6.2
+      "bytesOverWire": 3536,
+      "bytesOfJson": 42429,
+      "medianMs": 22.6,
+      "p95Ms": 41.6,
+      "minMs": 17.6
     },
     {
       "label": "chart export (json)",
       "path": "/patients/720/export?format=json",
       "status": 200,
       "encoding": "br",
-      "bytesOverWire": 7020,
-      "bytesOfJson": 146098,
-      "medianMs": 17.7,
-      "p95Ms": 22.8,
-      "minMs": 15.3
+      "bytesOverWire": 8524,
+      "bytesOfJson": 187493,
+      "medianMs": 58.5,
+      "p95Ms": 123.9,
+      "minMs": 49.4
     }
   ]
 }

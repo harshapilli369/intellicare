@@ -61,43 +61,79 @@ everything. The two reads also run concurrently rather than one after the other.
 The complete history is still available: the export returns all of it, and the
 appointment list takes filters.
 
-### 3. `Cache-Control` so revalidation actually happens
+### 3. `Cache-Control`, and an optimisation given up on purpose
 
-Express already puts an ETag on every JSON response, but without a
-`Cache-Control` directive a browser is left to guess whether to revalidate, and
-generally refetches instead.
+This began as `private, no-cache` — cache it, but revalidate before use — so
+that a repeated read could come back as a 304 costing a couple of hundred bytes
+instead of the payload.
 
-`private, no-cache` does not mean "do not cache" — it means "cache it, but check
-with me before using it". That is exactly right for clinical data: a stale chart
-must never be shown, while a revalidation that comes back `304` costs a couple
-of hundred bytes instead of the payload it replaces. `private` also keeps
-patient data out of any shared cache in between.
+**A baseline security scan of the deployment then flagged the responses as
+storable, and it was right to.** `no-cache` permits a browser to write a copy to
+disk; these are patient charts, and a clinic workstation is shared. A chart left
+in an on-disk cache outlives the session that fetched it.
+
+So the header is now `no-store`, and the revalidation saving is deliberately
+given up. It was never large — compression is what made these responses small —
+and it is not worth leaving patient records on a shared machine's disk. Recorded
+here rather than quietly dropped, because giving up an optimisation is a result
+too.
+
+See [SECURITY.md](SECURITY.md) for the scan that prompted it.
 
 ### Result
 
+Both columns measured back to back in one session against the same database, so
+the comparison is not distorted by the dataset having grown between runs.
+
 | Endpoint | Bytes before | Bytes after | Saved | ms before | ms after |
 |---|---|---|---|---|---|
-| Patient directory, one page | 2,598 | 457 | 82% | 8.2 | 8.0 |
-| Patient directory, full page | 24,525 | 2,014 | 92% | 14.7 | 11.1 |
-| One patient chart | 128,030 | 1,026 | **99%** | 17.0 | **7.7** |
-| Clinician dashboard | 859 | 859 | 0% | 12.4 | 10.1 |
-| Admin dashboard | 855 | 855 | 0% | 6.3 | 5.3 |
-| Appointment list | 92,903 | 3,495 | 96% | 20.2 | 15.7 |
-| Availability for a day | 497 | 497 | 0% | 5.2 | 4.9 |
-| Clinical notes | 35,051 | 2,961 | 92% | 9.5 | 7.9 |
-| Chart export (JSON) | 146,098 | 7,020 | 95% | 19.2 | 17.7 |
-| **Total** | **431,416** | **19,184** | **96%** | | |
+| Patient directory, one page | 2,564 | 456 | 82% | 19.1 | 38.3 |
+| Patient directory, full page | 24,915 | 1,883 | 92% | 23.6 | 33.2 |
+| One patient chart | 168,307 | 1,052 | **99%** | 51.9 | **23.3** |
+| Clinician dashboard | 859 | 859 | 0% | 28.8 | 31.3 |
+| Admin dashboard | 855 | 855 | 0% | 14.7 | 16.7 |
+| Appointment list | 123,819 | 4,382 | 96% | 48.4 | 50.5 |
+| Availability for a day | 497 | 497 | 0% | 11.9 | 12.4 |
+| Clinical notes | 42,429 | 3,536 | 92% | 18.9 | 22.6 |
+| Chart export (JSON) | 187,493 | 8,524 | 95% | 47.0 | 58.5 |
+| **Total** | **551,738** | **22,044** | **96%** | | |
 
-**431 KB down to 19 KB — a 96% reduction across the nine endpoints measured.**
+**552 KB down to 22 KB — a 96% reduction across the nine endpoints measured.**
 
-The three endpoints showing 0% are the ones already under the 1 KB compression
-threshold; leaving them uncompressed is the optimisation working as intended,
-not failing to.
+The three endpoints showing 0% are already under the 1 KB compression
+threshold; leaving them alone is the optimisation working as intended, not
+failing to.
 
-The patient chart is worth calling out separately: **128 KB → 1 KB, and 17 ms →
-7.7 ms**. Compression accounts for the bytes, but the latency came from the
-bounded reads — the server had been serialising 572 rows to render a screen that
-displays about twenty.
+### Reading the millisecond column honestly
+
+**The byte reduction is the reliable result. The latency column is not, and it
+would be misleading to present it as a win.**
+
+Two things are happening in it.
+
+**Compression trades CPU for bandwidth, and this benchmark cannot see the half
+that pays.** It runs over loopback, where transfer is effectively free, so all
+it measures is the cost of compressing and none of the benefit of sending less.
+Over any real network — and certainly to a browser on a phone — sending 8 KB
+instead of 187 KB is overwhelmingly the faster choice. On localhost it can only
+ever look like a loss.
+
+That cost was worth tuning rather than accepting. The `compression` middleware
+defaults to brotli quality **11**, which is meant for assets compressed once and
+served thousands of times; these responses are built per request. At 11 the
+export went from 47 ms to 66 ms. Dropping to quality **4** gave most of that
+back at almost no cost in size — 58.5 ms for the same 8,524 bytes.
+
+**The rest is measurement noise.** The directory's one-page response is 456
+bytes and appears to have gone from 19 ms to 38 ms, which nothing in the change
+explains — it is not even compressed at that size. Two databases, a test
+suite and a container runtime were competing for the same machine. Millisecond
+differences of this size on a loopback benchmark are not evidence of anything.
+
+**One latency result is real:** the patient chart, **51.9 ms → 23.3 ms**. That
+is not encoding, it is work removed — the server had been reading and
+serialising 572 rows to render a screen that displays about twenty. Removing
+work is reliably faster in a way that re-encoding a payload is not.
 
 ---
 
@@ -124,15 +160,22 @@ vendor chunk keeps its filename across deployments and stays cached.
 
 ### Result
 
-JavaScript only. The 41 KB stylesheet is unchanged by either optimisation and
-is excluded from both columns so the comparison is like for like.
+JavaScript only. The stylesheet is unchanged by either optimisation and is
+excluded from both columns so the comparison is like for like.
 
 | | Before | After | Change |
 |---|---|---|---|
-| Initial JS | 340.5 KB | 241.7 KB | **−29%** |
-| Initial JS, gzipped | 103.2 KB | 82.6 KB | **−20%** |
-| Deferred | 0 | 100.0 KB across 28 chunks | fetched on demand |
-| Stable across deployments | 0 KB | 221.2 KB (two vendor chunks) | cached, not re-downloaded |
+| Initial JS | 340.5 KB | 258.7 KB | **−24%** |
+| Initial JS, gzipped | 103.2 KB | 88.5 KB | **−14%** |
+| Deferred | 0 | 98.0 KB across 28 chunks | fetched on demand |
+| Stable across deployments | 0 KB | 239.1 KB (two vendor chunks) | cached, not re-downloaded |
+
+**The "after" figure carries a security upgrade that made it worse, and the
+number is left honest rather than flattered.** React Router was upgraded from 6
+to 7 to close an open-redirect advisory (see [SECURITY.md](SECURITY.md)), and
+version 7 is roughly 35 KB heavier. The splitting alone saved more than 24%;
+the security fix gave part of it back. Reporting the larger figure by measuring
+against the older dependency would have been the easy option and the wrong one.
 
 The application's own entry chunk is now **20.5 KB** — the rest of the initial
 payload is framework code that a returning visitor already has.

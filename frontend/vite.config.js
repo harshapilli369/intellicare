@@ -10,10 +10,20 @@ export default defineConfig({
         // changes whenever anything is deployed. Bundled together, every
         // deployment invalidates the browser's copy of React as well, and a
         // returning user downloads all of it again. Split apart, the vendor
-        // chunk keeps its filename across deployments and stays cached.
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          vendor: ['axios', 'react-toastify'],
+        // chunks keep their filenames across deployments and stay cached.
+        //
+        // Written as a function rather than the object form: rolldown, which
+        // Vite 8 builds with, accepts only this shape.
+        manualChunks: (id) => {
+          if (!id.includes('node_modules')) return undefined;
+
+          if (/[\\/]node_modules[\\/](react|react-dom|scheduler|react-router)/.test(id)) {
+            return 'react-vendor';
+          }
+          if (/[\\/]node_modules[\\/](axios|react-toastify)/.test(id)) {
+            return 'vendor';
+          }
+          return undefined;
         },
       },
     },
