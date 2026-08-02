@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
 import AiBadge from '../../components/ai/AiBadge';
+import IntakePanel from '../../components/intake/IntakePanel';
 import { useAuth } from '../../context/AuthContext';
 import { getSummary, generatePre, generatePost, finalizeSummary } from '../../services/aiApi';
 import { getAppointment, listAppointments } from '../../services/appointmentApi';
@@ -200,6 +201,10 @@ const AISummaries = () => {
               </p>
             </div>
           )}
+
+          {/* What the patient said before the visit, which also feeds the
+              brief generated below. */}
+          <IntakePanel appointmentId={appointmentId} />
 
           {summary?.finalized && (
             <div className="mt-4 rounded-lg bg-green-50 px-4 py-2 text-sm text-green-800">

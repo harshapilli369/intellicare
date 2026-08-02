@@ -9,6 +9,7 @@ const ClinicalNote = require('../src/models/mongodb/ClinicalNote');
 const AISummary = require('../src/models/mongodb/AISummary');
 const ReminderDispatch = require('../src/models/mongodb/ReminderDispatch');
 const Notification = require('../src/models/mongodb/Notification');
+const IntakeSubmission = require('../src/models/mongodb/IntakeSubmission');
 
 const PASSWORD = 'Password123!';
 
@@ -74,6 +75,8 @@ const clearAll = async () => {
   await ReminderDispatch.deleteMany({});
   // Notifications point at the accounts being recreated, so they go too.
   await Notification.deleteMany({});
+  // Intake forms are keyed on appointments that are about to be replaced.
+  await IntakeSubmission.deleteMany({});
 };
 
 const seed = async () => {
