@@ -7,6 +7,7 @@ const { patientProfileFor } = require('../middleware/ownership');
 const { notify } = require('../services/notificationService');
 const { sendMail } = require('../services/emailService');
 const { formatWhen } = require('../utils/datetime');
+const { safeContentType, safeFilename } = require('../utils/uploads');
 
 // Attachments never travel with the submission itself; only enough to list them
 // and fetch one. Sending the bytes inside a JSON list would make reading an
@@ -260,8 +261,15 @@ const downloadAttachment = async (req, res, next) => {
     const file = submission?.attachments?.[index];
     if (!file) return res.status(404).json({ message: 'Attachment not found' });
 
-    res.setHeader('Content-Type', file.mimetype);
-    res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
+    // Neither the type nor the name is trusted, both having come from whoever
+    // uploaded the file. An unrecognised type is served opaquely rather than
+    // echoed back, and the name is stripped of anything that could end the
+    // header field early and rewrite the disposition.
+    res.setHeader('Content-Type', safeContentType(file.mimetype));
+    res.setHeader('Content-Disposition', `attachment; filename="${safeFilename(file.filename)}"`);
+    // Belt and braces: refuses to let a browser guess a type more dangerous
+    // than the one declared.
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     res.send(file.data);
   } catch (err) {
     next(err);

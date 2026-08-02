@@ -18,7 +18,16 @@ const submitIntake = async (token, appointmentId, answers, files = []) => {
   Object.entries(answers).forEach(([field, value]) => {
     if (value !== undefined && value !== null && value !== '') form.append(field, String(value));
   });
-  files.forEach((file) => form.append('attachments', new Blob([file.content]), file.name));
+  // The type is declared, as a browser declares it. Uploads are filtered on it,
+  // so a file with no stated type is refused - which is the intended behaviour
+  // and not something a fixture should be quietly exempt from.
+  files.forEach((file) =>
+    form.append(
+      'attachments',
+      new Blob([file.content], { type: file.type || 'application/pdf' }),
+      file.name
+    )
+  );
 
   const response = await fetch(`${BASE}/intake/${appointmentId}`, {
     method: 'POST',
@@ -124,7 +133,7 @@ describe('Patient intake', () => {
         patient.token,
         upcoming.id,
         { mainComplaint: 'Chest tightness on exertion', durationDays: 12, severity: 6 },
-        [{ name: 'lab-report.txt', content: 'Haemoglobin 140 g/L' }]
+        [{ name: 'lab-report.pdf', type: 'application/pdf', content: 'Haemoglobin 140 g/L' }]
       );
     });
 
@@ -134,7 +143,7 @@ describe('Patient intake', () => {
       assert.equal(status, 200);
       assert.equal(json.intake.mainComplaint, 'Chest tightness on exertion');
       assert.equal(json.intake.attachments.length, 1);
-      assert.equal(json.intake.attachments[0].filename, 'lab-report.txt');
+      assert.equal(json.intake.attachments[0].filename, 'lab-report.pdf');
       assert.ok(json.intake.attachments[0].size > 0);
       assert.equal(
         json.intake.attachments[0].data,
@@ -157,6 +166,40 @@ describe('Patient intake', () => {
       });
       assert.equal(response.status, 200);
       assert.equal(await response.text(), 'Haemoglobin 140 g/L');
+    });
+
+    // Raised by a static scan: the download echoed the type and the name the
+    // uploader supplied, straight into response headers. A file stored as
+    // text/html would have been served back as a page from this origin, and a
+    // name containing a quote could end the Content-Disposition field early and
+    // turn `attachment` into `inline`.
+    it('will not store a file the browser might execute', async () => {
+      const { status, json } = await submitIntake(
+        patient.token,
+        upcoming.id,
+        { mainComplaint: 'Attachment type check' },
+        [{ name: 'evil.html', type: 'text/html', content: '<script>alert(1)</script>' }]
+      );
+
+      assert.equal(status, 400);
+      assert.match(json.message, /images and PDFs/);
+    });
+
+    it('serves an attachment as a download, typed and named safely', async () => {
+      const response = await fetch(`${BASE}/intake/appointment/${upcoming.id}/attachment/0`, {
+        headers: { Authorization: `Bearer ${clinician.token}` },
+      });
+
+      assert.equal(response.headers.get('content-type'), 'application/pdf');
+      assert.equal(
+        response.headers.get('content-disposition'),
+        'attachment; filename="lab-report.pdf"'
+      );
+      assert.equal(
+        response.headers.get('x-content-type-options'),
+        'nosniff',
+        'the browser is told not to guess a more dangerous type'
+      );
     });
 
     it('refuses an attachment to someone the form is not about', async () => {

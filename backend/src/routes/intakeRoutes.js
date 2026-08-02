@@ -6,6 +6,7 @@ const intakeController = require('../controllers/intakeController');
 const authenticate = require('../middleware/authenticate');
 const authorize = require('../middleware/authorize');
 const validate = require('../middleware/validate');
+const { fileFilter } = require('../utils/uploads');
 
 // Held in memory and written into the submission document rather than to disk.
 // Capped tightly: these are photographs and lab reports a patient took on a
@@ -16,6 +17,10 @@ const MAX_FILES = 4;
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_FILE_BYTES, files: MAX_FILES },
+  // Refused here rather than on the way out. The frontend's `accept` attribute
+  // only steers the file picker; anything can be posted regardless, and a
+  // stored file outlives the rules it arrived under.
+  fileFilter,
 });
 
 router.use(authenticate);
@@ -74,6 +79,12 @@ router.get(
 // otherwise surface as a generic server error rather than telling the patient
 // what was wrong with their file.
 router.use((err, req, res, next) => {
+  // A refused file type is raised by the filter as a plain Error rather than a
+  // MulterError, so it is matched on its code instead.
+  if (err?.code === 'LIMIT_UNEXPECTED_FILE_TYPE') {
+    return res.status(400).json({ message: err.message });
+  }
+
   if (err instanceof multer.MulterError) {
     const message =
       err.code === 'LIMIT_FILE_SIZE'
