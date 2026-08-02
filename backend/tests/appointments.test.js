@@ -72,6 +72,29 @@ describe('Appointments', () => {
       );
       assert.equal(status, 400);
     });
+
+    // A date of the right shape but no such day used to be accepted, and
+    // `new Date` rolled it back a day: the caller asked about the 31st and was
+    // quietly answered about the 30th, then booked into it.
+    it('refuses a day that does not exist rather than rolling it back', async () => {
+      const impossible = ['2026-09-31', '2026-04-31', '2026-02-30', '2025-02-29'];
+
+      for (const date of impossible) {
+        const { status } = await get(
+          `/appointments/availability?clinicianId=${clinician.user.id}&date=${date}`,
+          admin.token
+        );
+        assert.equal(status, 400, `${date} is not a day and must not be answered`);
+      }
+    });
+
+    it('still accepts the last real day of a short month', async () => {
+      const { status } = await get(
+        `/appointments/availability?clinicianId=${clinician.user.id}&date=2026-09-30`,
+        admin.token
+      );
+      assert.equal(status, 200);
+    });
   });
 
   describe('reading one appointment', () => {
@@ -148,6 +171,16 @@ describe('Appointments', () => {
       assert.ok(!after.json.slots.includes(slot));
 
       await patch(`/appointments/${json.appointment.id}/cancel`, patient.token);
+    });
+
+    it('refuses to book a time on a day that does not exist', async () => {
+      const { status } = await post('/appointments', patient.token, {
+        clinicianId: clinician.user.id,
+        scheduledAt: '2026-09-31T14:00:00.000Z',
+        reason: 'A day that never comes',
+      });
+
+      assert.equal(status, 400, 'the 31st of September is not a time to be booked into');
     });
 
     it('refuses a second booking of the same slot', async () => {

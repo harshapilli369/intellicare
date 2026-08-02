@@ -69,10 +69,16 @@ const BookAppointment = () => {
     };
   }, [clinicianId, date]);
 
+  // Moving between months has to bring the chosen day somewhere real: leaving it
+  // on the 31st while stepping into a thirty-day month asks about a date that
+  // does not exist, and nothing in the grid looks chosen either.
   const shiftMonth = (by) => {
     const shifted = new Date(year, month - 1 + by, 1);
+    const daysInShifted = new Date(shifted.getFullYear(), shifted.getMonth() + 1, 0).getDate();
+
     setYear(shifted.getFullYear());
     setMonth(shifted.getMonth() + 1);
+    setDay((chosen) => Math.min(chosen, daysInShifted));
   };
 
   const confirm = async () => {
