@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { toast } from 'react-toastify';
 
 import BookingDialog from '../../components/appointments/BookingDialog';
 import PatientList from '../../components/patients/PatientList';
 import SearchInput from '../../components/common/SearchInput';
+import LoadError from '../../components/common/LoadError';
 import useDebouncedValue from '../../hooks/useDebouncedValue';
+import useLoad from '../../hooks/useLoad';
 import { useAuth } from '../../context/AuthContext';
 import { listPatients } from '../../services/patientApi';
 
@@ -22,8 +23,6 @@ const PatientsList = () => {
   const [search, setSearch] = useState('');
   const [sex, setSex] = useState('');
   const [page, setPage] = useState(1);
-  const [data, setData] = useState(EMPTY);
-  const [loading, setLoading] = useState(true);
   // The patient a visit is being booked for, if any.
   const [bookingFor, setBookingFor] = useState(null);
 
@@ -35,29 +34,19 @@ const PatientsList = () => {
     setPage(1);
   }, [debouncedSearch, sex]);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
+  // The hook holds the `cancelled` guard, so a slower earlier request cannot
+  // overwrite newer results.
+  const {
+    data: loaded,
+    error,
+    loading,
+    reload,
+  } = useLoad(
+    () => listPatients({ page, limit: PAGE_SIZE, search: debouncedSearch, sex }),
+    [page, debouncedSearch, sex]
+  );
 
-    listPatients({ page, limit: PAGE_SIZE, search: debouncedSearch, sex })
-      .then((res) => {
-        if (!cancelled) setData(res);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setData(EMPTY);
-          toast.error('Could not load patients');
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    // A slower earlier request must not overwrite the newest results.
-    return () => {
-      cancelled = true;
-    };
-  }, [page, debouncedSearch, sex]);
+  const data = loaded || EMPTY;
 
   // Stable identity keeps the memoized entries from re-rendering on every keystroke.
   const base = user?.role === 'admin' ? '/admin' : '/clinician';
@@ -103,12 +92,18 @@ const PatientsList = () => {
       </div>
 
       <div className="mt-2">
-        <PatientList
-          patients={data.patients}
-          loading={loading}
-          onView={openPatient}
-          onBook={setBookingFor}
-        />
+        {/* A failed search and a search with no matches both render an empty
+            table. They mean different things, so they are shown differently. */}
+        {error ? (
+          <LoadError what="the patient list" error={error} onRetry={reload} retrying={loading} />
+        ) : (
+          <PatientList
+            patients={data.patients}
+            loading={loading}
+            onView={openPatient}
+            onBook={setBookingFor}
+          />
+        )}
       </div>
 
       {bookingFor && (

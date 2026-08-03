@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { toast } from 'react-toastify';
 
 import AiBadge from '../../components/ai/AiBadge';
+import LoadError from '../../components/common/LoadError';
+import useLoad from '../../hooks/useLoad';
 import { getPatientDashboard } from '../../services/dashboardApi';
 import { getPatientSummaries } from '../../services/aiApi';
 
@@ -41,28 +41,10 @@ const Heading = ({ appointment, writtenAt }) => {
 // The plain-language summaries a clinician has released. Drafts never appear
 // here; the backend only returns finalized ones.
 const PatientSummaries = () => {
-  const [summaries, setSummaries] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    getPatientDashboard()
-      .then(({ patientId }) => getPatientSummaries(patientId))
-      .then((res) => {
-        if (!cancelled) setSummaries(res);
-      })
-      .catch(() => {
-        if (!cancelled) toast.error('Could not load your reports');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { data, error, loading, reload } = useLoad(() =>
+    getPatientDashboard().then(({ patientId }) => getPatientSummaries(patientId))
+  );
+  const summaries = data || [];
 
   if (loading) return <p className="text-sm text-slate-500">Loading your reports...</p>;
 
@@ -77,7 +59,14 @@ const PatientSummaries = () => {
         A plain-language summary of each visit, once your clinician has reviewed it.
       </p>
 
-      {summaries.length === 0 ? (
+      {/* An error and an empty list look identical once the toast has faded,
+          and here they mean opposite things - "we could not fetch your reports"
+          against "your clinician has not released one yet". */}
+      {error ? (
+        <div className="mt-6">
+          <LoadError what="your reports" error={error} onRetry={reload} retrying={loading} />
+        </div>
+      ) : summaries.length === 0 ? (
         <p className="mt-8 text-sm text-slate-500">
           You have no reports yet. One appears here after a visit, once your clinician has released
           it.

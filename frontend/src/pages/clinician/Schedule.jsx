@@ -4,7 +4,9 @@ import { toast } from 'react-toastify';
 
 import AppointmentCard from '../../components/appointments/AppointmentCard';
 import SearchInput from '../../components/common/SearchInput';
+import LoadError from '../../components/common/LoadError';
 import useDebouncedValue from '../../hooks/useDebouncedValue';
+import useLoad from '../../hooks/useLoad';
 import { useAuth } from '../../context/AuthContext';
 import { listAppointments, setAppointmentStatus } from '../../services/appointmentApi';
 import { requestIntake as requestIntakeForm } from '../../services/intakeApi';
@@ -37,31 +39,25 @@ const ClinicianSchedule = () => {
   const { user } = useAuth();
 
   const [date, setDate] = useState(toDateInput(new Date()));
-  const [appointments, setAppointments] = useState([]);
   const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
 
   const debouncedSearch = useDebouncedValue(search, 200);
 
-  const load = useCallback(async () => {
-    if (!user?.id) return;
-    setLoading(true);
-    try {
-      // One clinician, one day: the filter is applied by the API so the page
-      // never holds appointments it is not showing.
-      setAppointments(await listAppointments({ clinicianId: user.id, from: date, to: date }));
-    } catch {
-      setAppointments([]);
-      toast.error('Could not load your schedule');
-    } finally {
-      setLoading(false);
-    }
-  }, [user?.id, date]);
+  // One clinician, one day: the filter is applied by the API so the page never
+  // holds appointments it is not showing.
+  const {
+    data: loaded,
+    error,
+    loading,
+    reload,
+    setData: setAppointments,
+  } = useLoad(
+    () => (user?.id ? listAppointments({ clinicianId: user.id, from: date, to: date }) : []),
+    [user?.id, date]
+  );
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const appointments = loaded || [];
 
   const openPatient = useCallback((patientId) => navigate(`/clinician/patients/${patientId}`), [navigate]);
 
@@ -160,7 +156,16 @@ const ClinicianSchedule = () => {
 
       {loading && <p className="mt-8 text-sm text-slate-500">Loading your schedule...</p>}
 
-      {!loading && shown.length === 0 && (
+      {/* A day that failed to load and a day with nothing in it both render an
+          empty schedule, and a clinician acting on the second when it is really
+          the first is the reason this distinction matters here. */}
+      {!loading && error && (
+        <div className="mt-8">
+          <LoadError what="your schedule" error={error} onRetry={reload} retrying={loading} />
+        </div>
+      )}
+
+      {!loading && !error && shown.length === 0 && (
         <p className="mt-8 text-sm text-slate-500">
           {appointments.length === 0
             ? 'Nothing booked for this day.'

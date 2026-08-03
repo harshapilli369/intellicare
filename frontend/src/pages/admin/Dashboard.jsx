@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'react-toastify';
 
 import AppointmentRow from '../../components/dashboard/AppointmentRow';
 import MiniCalendar from '../../components/dashboard/MiniCalendar';
+import LoadError from '../../components/common/LoadError';
+import useLoad from '../../hooks/useLoad';
 import { getAdminDashboard } from '../../services/dashboardApi';
 
 const Stat = ({ value, label }) => (
@@ -19,28 +20,10 @@ const AdminDashboard = () => {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-
-    getAdminDashboard(`${year}-${String(month).padStart(2, '0')}`)
-      .then((res) => {
-        if (!cancelled) setData(res);
-      })
-      .catch(() => {
-        if (!cancelled) toast.error('Could not load the dashboard');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [year, month]);
+  const { data, error, loading, reload } = useLoad(
+    () => getAdminDashboard(`${year}-${String(month).padStart(2, '0')}`),
+    [year, month]
+  );
 
   const openPatient = useCallback(
     (patientId) => navigate(`/admin/patients/${patientId}`),
@@ -54,7 +37,10 @@ const AdminDashboard = () => {
   };
 
   if (loading && !data) return <p className="text-sm text-slate-500">Loading the dashboard...</p>;
-  if (!data) return null;
+
+  if (error || !data) {
+    return <LoadError what="the dashboard" error={error} onRetry={reload} retrying={loading} />;
+  }
 
   const { counts, today, busyDays } = data;
 
