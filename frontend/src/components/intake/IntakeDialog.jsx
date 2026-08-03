@@ -89,8 +89,10 @@ const IntakeDialog = ({ appointment, onClose, onSubmitted }) => {
         rules.required('A description of the problem'),
         rules.maxLength(2000, 'That description'),
       ],
-      durationDays: rules.range(0, 3650, 'The number of days'),
-      severity: rules.range(1, 10, 'Severity'),
+      // Whole numbers, because that is what the API accepts. Checking only the
+      // range let 7.5 through to be refused by the server.
+      durationDays: [rules.wholeNumber('The number of days'), rules.range(0, 3650, 'The number of days')],
+      severity: [rules.wholeNumber('Severity'), rules.range(1, 10, 'Severity')],
       medicationsTaken: rules.maxLength(2000, 'That list'),
       additionalNotes: rules.maxLength(4000, 'That note'),
     });
@@ -148,17 +150,22 @@ const IntakeDialog = ({ appointment, onClose, onSubmitted }) => {
               <input
                 type="number"
                 min="0"
+                max="3650"
+                // Without a step, a number input accepts decimals and the
+                // browser's own validation allows them through.
+                step="1"
                 value={form.durationDays}
                 onChange={set('durationDays')}
                 className={inputClass}
               />
             </Field>
 
-            <Field label="How bad is it?" hint="1 to 10">
+            <Field label="How bad is it?" hint="1 to 10, whole numbers">
               <input
                 type="number"
                 min="1"
                 max="10"
+                step="1"
                 value={form.severity}
                 onChange={set('severity')}
                 className={inputClass}
