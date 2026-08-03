@@ -15,8 +15,9 @@ const Field = ({ label, children }) => (
 const inputClass =
   'w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:border-brand';
 
-// Writing a prescription. The medication comes from the reference list rather
-// than being typed, which is what the backend validates against anyway.
+// Writing a prescription. The medication is typed with the clinic's formulary
+// offered as suggestions, and checked against it before the order can be
+// issued - which is what the backend enforces regardless.
 const PrescribeDialog = ({ patient, appointmentId = null, onClose, onIssued }) => {
   const { user } = useAuth();
 
@@ -61,25 +62,52 @@ const PrescribeDialog = ({ patient, appointmentId = null, onClose, onIssued }) =
   // The signature stands in for confirming the order: the clinician types their
   // own name, and it has to match the account issuing it.
   const signed = signature.trim().toLowerCase() === (user?.name || '').toLowerCase();
-  const ready = medication && signed && !saving;
+  // A medication that is not on the formulary cannot be issued, so the button
+  // does not pretend otherwise.
+  const ready = Boolean(chosen) && signed && !saving;
 
   return (
     <Modal title={`Prescribe for ${patient.name}`} onClose={onClose} width="max-w-3xl">
       <div className="rounded-2xl border border-slate-300 bg-white p-8">
         <div className="space-y-7">
           <Field label="Medication Name">
-            <select
+            {/* Typed, not picked from a closed list - a clinician knows the
+                name and should not have to scroll for it. The list is offered
+                as suggestions that filter as they type, which is how a
+                dispensing system behaves.
+
+                It is still checked against the formulary, deliberately. Free
+                text on a drug name is a known source of harm: look-alike and
+                sound-alike names, ambiguous abbreviations, and misspellings
+                that a pharmacist then has to interpret. The check happens on
+                the server either way; this only says so earlier. */}
+            <input
+              list="formulary"
               value={medication}
               onChange={(event) => setMedication(event.target.value)}
+              placeholder="Start typing a medication name"
+              autoComplete="off"
               className={inputClass}
-            >
-              <option value="">Choose a medication...</option>
+            />
+            <datalist id="formulary">
               {medications.map((item) => (
-                <option key={item.name} value={item.name}>
-                  {item.name}
-                </option>
+                <option key={item.name} value={item.name} />
               ))}
-            </select>
+            </datalist>
+
+            {/* Says so before the request, rather than after it comes back
+                refused. */}
+            {medication && !chosen && (
+              <p className="mt-1.5 text-sm text-amber-700">
+                {medication} is not on the clinic&apos;s formulary. Choose from the suggestions, or
+                ask for it to be added.
+              </p>
+            )}
+            {chosen && (
+              <p className="mt-1.5 text-xs text-slate-500">
+                {[chosen.form, chosen.routes?.join(' or ')].filter(Boolean).join(' · ')}
+              </p>
+            )}
           </Field>
 
           <Field label="Dosage">

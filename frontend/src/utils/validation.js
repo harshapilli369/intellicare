@@ -52,6 +52,20 @@ export const rules = {
     return number >= low && number <= high ? null : `${label} must be between ${low} and ${high}`;
   },
 
+  // Whole numbers only, matching the server's `isInt`.
+  //
+  // Added because `range` alone was looser than the rule it was meant to
+  // mirror: a severity of 7.5 passed here and was refused by the API, which is
+  // the worst of both - the form promises something the server will not honour,
+  // and the person filling it in is told "Invalid request" after the fact.
+  wholeNumber: (label) => (value) => {
+    if (value === '' || value === null || value === undefined) return null;
+
+    const number = Number(value);
+    if (Number.isNaN(number)) return `${label} must be a number`;
+    return Number.isInteger(number) ? null : `${label} must be a whole number`;
+  },
+
   matches: (other, message) => (value) => (value === other ? null : message),
 };
 
