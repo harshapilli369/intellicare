@@ -1,8 +1,9 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
 import { createPatient } from '../../services/patientApi';
+import { rules, validate } from '../../utils/validation';
 
 const inputClass =
   'w-full rounded-lg border border-slate-300 px-4 py-3 text-sm outline-none focus:border-brand';
@@ -34,16 +35,39 @@ const AddPatient = () => {
     address: '',
     healthCardNumber: '',
   });
-  const [invalid, setInvalid] = useState([]);
+  // Problems by field name, so each input can show its own.
+  const [invalid, setInvalid] = useState({});
   const [message, setMessage] = useState(null);
   const [saving, setSaving] = useState(false);
 
   const set = (field) => (event) => setForm({ ...form, [field]: event.target.value });
 
+  // The same rules the API applies. Checked here first so an empty name or a
+  // malformed address is caught while the person is still looking at the form,
+  // rather than after a round trip that tells them the same thing.
+  const schema = {
+    name: rules.required('A name'),
+    email: [rules.required('An email address'), rules.email],
+    password: [rules.required('A password'), rules.password],
+    dateOfBirth: rules.pastDate,
+    healthCardNumber: rules.maxLength(40, 'The health card number'),
+  };
+
   const submit = async (event) => {
     event.preventDefault();
-    setInvalid([]);
     setMessage(null);
+
+    const problems = validate(form, schema);
+    if (Object.keys(problems).length > 0) {
+      setInvalid(problems);
+      // Nothing is sent. The form says what is wrong, field by field, and the
+      // first offending input is focused so a long form does not have to be
+      // hunted through.
+      document.getElementById(Object.keys(problems)[0])?.focus();
+      return;
+    }
+
+    setInvalid({});
     setSaving(true);
 
     try {
@@ -55,16 +79,18 @@ const AddPatient = () => {
       toast.success(`${patient.name} added`);
       navigate(`/admin/patients/${patient.id}`);
     } catch (err) {
-      // The backend names the fields it rejected, so they are marked here rather
-      // than showing one message and leaving the form to be guessed at.
-      setInvalid(err.response?.data?.fields || []);
+      // The server checks everything again and knows things the browser cannot -
+      // that an address is already registered, say - so what it rejects is
+      // marked here too rather than shown as one opaque message.
+      const fields = err.response?.data?.fields || [];
+      setInvalid(Object.fromEntries(fields.map((f) => [f, 'Please check this field'])));
       setMessage(err.response?.data?.message || 'Could not add that patient');
     } finally {
       setSaving(false);
     }
   };
 
-  const errorFor = (field) => (invalid.includes(field) ? 'Please check this field' : null);
+  const errorFor = (field) => invalid[field] || null;
 
   return (
     <div className="mx-auto max-w-3xl">

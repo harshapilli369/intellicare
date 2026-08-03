@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
@@ -6,6 +6,8 @@ import { useAuth } from '../../context/AuthContext';
 import { getPatientDashboard } from '../../services/dashboardApi';
 import { outstandingIntake } from '../../services/intakeApi';
 import { exportPatient } from '../../services/patientApi';
+import LoadError from '../../components/common/LoadError';
+import useLoad from '../../hooks/useLoad';
 
 const formatTime = (value) =>
   new Date(value).toLocaleTimeString('en-CA', {
@@ -25,33 +27,17 @@ const PatientDashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const [data, setData] = useState(null);
-  const [outstanding, setOutstanding] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  // The dashboard proper. Its failure is the screen's failure, so it is shown
+  // as one rather than announced and then hidden.
+  const { data, error, loading, reload } = useLoad(() => getPatientDashboard());
 
-    // Read together. An outstanding form failing to load should not cost the
-    // patient their whole dashboard, so it settles on its own.
-    Promise.allSettled([getPatientDashboard(), outstandingIntake()])
-      .then(([dashboard, intake]) => {
-        if (cancelled) return;
-
-        if (dashboard.status === 'fulfilled') setData(dashboard.value);
-        else toast.error('Could not load your dashboard');
-
-        if (intake.status === 'fulfilled') setOutstanding(intake.value);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // Outstanding forms load separately and are allowed to fail quietly: not
+  // knowing about them is a smaller loss than losing the whole dashboard, and
+  // there is nothing useful to say about it.
+  const { data: outstandingData } = useLoad(() => outstandingIntake().catch(() => []));
+  const outstanding = outstandingData || [];
 
   const exportRecord = async (format) => {
     setExporting(format);
@@ -65,7 +51,12 @@ const PatientDashboard = () => {
   };
 
   if (loading) return <p className="text-sm text-slate-500">Loading your dashboard...</p>;
-  if (!data) return null;
+
+  // Says what went wrong and offers the way out, instead of a toast that fades
+  // over a blank page indistinguishable from an account with nothing in it.
+  if (error || !data) {
+    return <LoadError what="your dashboard" error={error} onRetry={reload} retrying={loading} />;
+  }
 
   const { counts, upcoming, pastVisits } = data;
   const waiting = counts.summariesAvailable;

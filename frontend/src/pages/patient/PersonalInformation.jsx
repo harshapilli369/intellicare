@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
 import ReminderSettings from '../../components/patients/ReminderSettings';
+import LoadError from '../../components/common/LoadError';
+import useLoad from '../../hooks/useLoad';
 import { getPatientDashboard } from '../../services/dashboardApi';
 import { getPatient, updateOwnContactDetails } from '../../services/patientApi';
 
@@ -30,34 +32,27 @@ const Held = ({ label, value }) => (
 // those is a conversation at the desk, not a form.
 const PersonalInformation = () => {
   const [patient, setPatient] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
 
+  const {
+    data: loaded,
+    error,
+    loading,
+    reload,
+  } = useLoad(() => getPatientDashboard().then(({ patientId }) => getPatient(patientId)));
+
+  // The form fields start from what was loaded, then belong to the person
+  // typing. Seeded once rather than on every render, so a reload does not
+  // discard an edit in progress.
   useEffect(() => {
-    let cancelled = false;
-
-    getPatientDashboard()
-      .then(({ patientId }) => getPatient(patientId))
-      .then((mine) => {
-        if (cancelled) return;
-        setPatient(mine);
-        setPhone(mine.phone || '');
-        setAddress(mine.address || '');
-      })
-      .catch(() => {
-        if (!cancelled) toast.error('Could not load your details');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    if (!loaded) return;
+    setPatient(loaded);
+    setPhone(loaded.phone || '');
+    setAddress(loaded.address || '');
+  }, [loaded]);
 
   const save = async (event) => {
     event.preventDefault();
@@ -74,7 +69,10 @@ const PersonalInformation = () => {
   };
 
   if (loading) return <p className="text-sm text-slate-500">Loading your details...</p>;
-  if (!patient) return null;
+
+  if (error || !patient) {
+    return <LoadError what="your details" error={error} onRetry={reload} retrying={loading} />;
+  }
 
   const unchanged = phone === (patient.phone || '') && address === (patient.address || '');
 

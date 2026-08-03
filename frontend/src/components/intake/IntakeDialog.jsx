@@ -3,6 +3,7 @@ import { toast } from 'react-toastify';
 
 import Modal from '../common/Modal';
 import { getIntake, submitIntake } from '../../services/intakeApi';
+import { rules, validate } from '../../utils/validation';
 
 const MAX_FILES = 4;
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
@@ -80,6 +81,26 @@ const IntakeDialog = ({ appointment, onClose, onSubmitted }) => {
   };
 
   const submit = async () => {
+    // Bounds the API enforces, checked here too. A severity of 99 or a duration
+    // in the thousands is a slipped keystroke, and finding out after the upload
+    // has been sent is a poor way to learn it.
+    const problems = validate(form, {
+      mainComplaint: [
+        rules.required('A description of the problem'),
+        rules.maxLength(2000, 'That description'),
+      ],
+      durationDays: rules.range(0, 3650, 'The number of days'),
+      severity: rules.range(1, 10, 'Severity'),
+      medicationsTaken: rules.maxLength(2000, 'That list'),
+      additionalNotes: rules.maxLength(4000, 'That note'),
+    });
+
+    const first = Object.values(problems)[0];
+    if (first) {
+      setMessage(first);
+      return;
+    }
+
     setSaving(true);
     setMessage(null);
     try {

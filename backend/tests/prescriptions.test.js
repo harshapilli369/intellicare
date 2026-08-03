@@ -222,7 +222,17 @@ describe('Prescriptions', () => {
         prescriptions.some((p) => p.id === issued.json.prescription.id),
         'the prescription just written is on the record'
       );
-      assert.equal(prescriptions[0].medication, 'Cetirizine', 'and newest first, so it leads');
+
+      // The ordering as a property of the list, rather than "mine is first".
+      // Other files prescribe for this patient in parallel, so whichever is
+      // newest at the moment of reading is not something this test controls.
+      const written = prescriptions.map((p) => new Date(p.createdAt).getTime());
+      assert.deepEqual(
+        written,
+        [...written].sort((a, b) => b - a),
+        'newest first'
+      );
+
       assert.ok(totals.prescriptions >= prescriptions.length, 'the full count is reported too');
     });
 

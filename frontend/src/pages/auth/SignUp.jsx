@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, homePathFor } from '../../context/AuthContext';
+import { rules, validate } from '../../utils/validation';
 
 const SignUp = () => {
   const { register } = useAuth();
@@ -16,8 +17,22 @@ const SignUp = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
+    // Everything the API would reject, caught before the request. Mirrors the
+    // server's rules rather than inventing looser ones, so the form never
+    // accepts something the API will refuse.
+    const problems = validate(
+      { fullName, email, password, confirmPassword },
+      {
+        fullName: rules.required('Your name'),
+        email: [rules.required('An email address'), rules.email],
+        password: [rules.required('A password'), rules.password],
+        confirmPassword: rules.matches(password, 'Those two passwords are not the same'),
+      }
+    );
+
+    const first = Object.values(problems)[0];
+    if (first) {
+      setError(first);
       return;
     }
 
