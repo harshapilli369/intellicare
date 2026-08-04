@@ -62,6 +62,17 @@ services:
       - key: NOTE_EDIT_WINDOW_HOURS
         value: 24
 
+      # Outgoing mail, over an HTTPS API. Either provider works; whichever key
+      # is set is used, and Resend is tried first.
+      #
+      # Resend is the quickest to get sending: an account is enough, with
+      # MAIL_FROM set to `onboarding@resend.dev`. The catch is that without a
+      # verified domain it delivers only to the address the account was
+      # registered with - fine for a demonstration, where the recipient is
+      # whoever is presenting, and not fine for a clinic.
+      - key: RESEND_API_KEY
+        sync: false
+
       # Outgoing mail, over Brevo's HTTPS API.
       #
       # Not SMTP: this plan blocks outbound SMTP, and blocks it by swallowing
