@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+
 import { useAuth } from '../../context/AuthContext';
 import NotificationBell from '../notifications/NotificationBell';
 import Sidebar from './Sidebar';
@@ -13,7 +15,21 @@ const AppLayout = ({ children }) => {
       <main className="flex-1">
         <div className="flex items-center justify-end gap-4 px-8 pt-6">
           <NotificationBell />
-          <span className="text-sm text-slate-700">{user?.name}</span>
+
+          {/* The name in a header is conventionally the way to your own
+              account, and people try it. A patient has somewhere to go, so it
+              is a link; staff have no profile screen of their own, so theirs
+              stays plain text rather than being a link that goes nowhere. */}
+          {user?.role === 'patient' ? (
+            <Link
+              to="/patient/details"
+              className="rounded text-sm text-slate-700 underline-offset-4 hover:text-brand hover:underline"
+            >
+              {user.name}
+            </Link>
+          ) : (
+            <span className="text-sm text-slate-700">{user?.name}</span>
+          )}
           <button
             type="button"
             onClick={logout}
