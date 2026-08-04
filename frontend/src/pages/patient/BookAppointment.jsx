@@ -72,6 +72,18 @@ const BookAppointment = () => {
   // Moving between months has to bring the chosen day somewhere real: leaving it
   // on the 31st while stepping into a thirty-day month asks about a date that
   // does not exist, and nothing in the grid looks chosen either.
+  // Every other dialog in the application closes on Escape, and a confirmation
+  // that does not would be the one that felt broken.
+  useEffect(() => {
+    if (!booked) return undefined;
+
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') navigate('/patient/appointments');
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [booked, navigate]);
+
   const shiftMonth = (by) => {
     const shifted = new Date(year, month - 1 + by, 1);
     const daysInShifted = new Date(shifted.getFullYear(), shifted.getMonth() + 1, 0).getDate();
@@ -200,29 +212,61 @@ const BookAppointment = () => {
         </div>
       </div>
 
+      {/* The design shows this panel over a blurred, dimmed page - which is what
+          makes it read as a confirmation rather than as a box that has landed
+          on top of the calendar. Only the panel was built; the treatment behind
+          it was not, so it looked misplaced.
+
+          Fixed to the viewport rather than positioned a third of the way down
+          the page, so it is centred wherever the person had scrolled to, and it
+          covers what is behind rather than sitting in the middle of it. Same
+          backdrop as every other dialog in the application. */}
       {booked && (
-        <div className="absolute inset-x-4 top-1/3 z-20 rounded-2xl bg-green-200 px-10 py-12 shadow-lg">
-          <button
-            type="button"
-            onClick={() => navigate('/patient/appointments')}
-            aria-label="Close"
-            className="absolute left-5 top-4 text-xl text-slate-700 hover:text-slate-900"
+        <div
+          role="presentation"
+          onClick={() => navigate('/patient/appointments')}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4 backdrop-blur-sm"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Booking confirmed"
+            onClick={(event) => event.stopPropagation()}
+            className="relative w-full max-w-xl rounded-2xl bg-green-200 px-10 py-12 shadow-xl"
           >
-            &times;
-          </button>
-          <p className="text-center text-xl font-bold text-slate-900">
-            Booking Successful! Parties will be notified
-          </p>
-          <p className="mt-2 text-center text-sm text-slate-700">
-            {booked.clinicianName} —{' '}
-            {new Date(booked.scheduledAt).toLocaleString('en-CA', {
-              weekday: 'long',
-              month: 'long',
-              day: 'numeric',
-              hour: 'numeric',
-              minute: '2-digit',
-            })}
-          </p>
+            <button
+              type="button"
+              onClick={() => navigate('/patient/appointments')}
+              aria-label="Close"
+              className="absolute left-5 top-4 text-xl leading-none text-slate-700 hover:text-slate-900"
+            >
+              &times;
+            </button>
+
+            <p className="text-center text-xl font-bold text-slate-900">
+              Booking Successful! Parties will be notified
+            </p>
+            <p className="mt-2 text-center text-sm text-slate-700">
+              {booked.clinicianName} &mdash;{' '}
+              {new Date(booked.scheduledAt).toLocaleString('en-CA', {
+                weekday: 'long',
+                month: 'long',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+              })}
+            </p>
+
+            {/* The panel closes onto the appointment list either way, but a
+                button says so rather than leaving somebody to find the cross. */}
+            <button
+              type="button"
+              onClick={() => navigate('/patient/appointments')}
+              className="mx-auto mt-6 block rounded-md bg-slate-900 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
+            >
+              View my appointments
+            </button>
+          </div>
         </div>
       )}
     </div>
