@@ -36,7 +36,7 @@ const Login = () => {
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           <div>
             <label htmlFor="email" className="text-sm font-bold text-slate-900">
-              User ID
+              Email
             </label>
             <input
               id="email"
@@ -50,7 +50,7 @@ const Login = () => {
 
           <div>
             <label htmlFor="password" className="text-sm font-bold text-slate-900">
-              Access Code
+              Password
             </label>
             <input
               id="password"
