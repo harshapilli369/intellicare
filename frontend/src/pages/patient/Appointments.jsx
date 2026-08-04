@@ -156,7 +156,7 @@ const PatientAppointments = () => {
   // The appointment whose intake form is open, if any.
   const [intakeFor, setIntakeFor] = useState(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async () => { // doesn't recreate on every render, so useEffect doesn't run forever
     setLoading(true);
     try {
       setAppointments(await listAppointments());
