@@ -16,9 +16,19 @@ let transport;
 // changes it.
 //
 // So a provider reached over HTTPS is the path that actually delivers from a
-// deployment, since nothing blocks port 443. Brevo is the one configured here.
-// It is chosen ahead of SMTP when its key is present, which leaves local
-// development free to carry on using Gmail.
+// deployment, since nothing blocks port 443. Two are supported, and whichever
+// is configured is used ahead of SMTP - which leaves local development free to
+// carry on with Gmail.
+//
+// Resend is the one to reach for first. It needs no verified domain to start:
+// sending from `onboarding@resend.dev` works the moment an account exists, with
+// the limitation that it will only deliver to the address the account was
+// registered with. That is useless for a clinic and entirely sufficient for a
+// demonstration, where the recipient is chosen by whoever is presenting.
+//
+// Brevo verifies a single sender address instead and will then deliver to
+// anybody, which is the better answer once real people are involved.
+const resendConfigured = () => Boolean(process.env.RESEND_API_KEY);
 const brevoConfigured = () => Boolean(process.env.BREVO_API_KEY);
 const smtpConfigured = () => Boolean(process.env.SMTP_HOST && process.env.SMTP_USER);
 
@@ -32,7 +42,8 @@ const smtpConfigured = () => Boolean(process.env.SMTP_HOST && process.env.SMTP_U
 // never in a deployment.
 const underTest = () => process.env.NODE_ENV === 'loadtest';
 
-const mailConfigured = () => !underTest() && (brevoConfigured() || smtpConfigured());
+const mailConfigured = () =>
+  !underTest() && (resendConfigured() || brevoConfigured() || smtpConfigured());
 
 // Long enough for any reachable server, short enough that a caller still gets
 // an answer. Without it, a blocked port costs minutes: an invitation once took
@@ -68,6 +79,31 @@ const getTransport = () => {
 };
 
 // An ordinary HTTPS request, which is the whole point of it.
+const viaResend = async ({ to, subject, text, from }) => {
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: from.name ? `${from.name} <${from.email}>` : from.email,
+      to: [to],
+      subject,
+      text,
+    }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+
+  if (response.ok) return { status: 'sent', detail: null };
+
+  // Resend explains a refusal in the body, and the explanation is usually the
+  // one that matters: without a verified domain it will only deliver to the
+  // address the account was registered with, and says so plainly.
+  const body = await response.text().catch(() => '');
+  throw new Error(`Resend refused it (HTTP ${response.status}): ${body.slice(0, 300)}`);
+};
+
 const viaBrevo = async ({ to, subject, text, from }) => {
   const abort = AbortSignal.timeout(TIMEOUT_MS);
 
@@ -122,11 +158,13 @@ const sendMail = async ({ to, subject, text }) => {
     return { status: 'skipped', detail: 'no sender address configured' };
   }
 
-  const deliver = brevoConfigured() ? viaBrevo : viaSmtp;
+  // HTTP providers first: they are the ones that work from a deployment.
+  const via = resendConfigured() ? 'resend' : brevoConfigured() ? 'brevo' : 'smtp';
+  const deliver = via === 'resend' ? viaResend : via === 'brevo' ? viaBrevo : viaSmtp;
 
   try {
     const result = await deliver({ to, subject, text, from });
-    log.info({ to, subject, via: brevoConfigured() ? 'brevo' : 'smtp' }, 'email sent');
+    log.info({ to, subject, via }, 'email sent');
     return result;
   } catch (err) {
     // Reported, not thrown - a caller sending in bulk records the outcome per
@@ -137,4 +175,10 @@ const sendMail = async ({ to, subject, text }) => {
   }
 };
 
-module.exports = { sendMail, mailConfigured, smtpConfigured, brevoConfigured };
+module.exports = {
+  sendMail,
+  mailConfigured,
+  smtpConfigured,
+  brevoConfigured,
+  resendConfigured,
+};

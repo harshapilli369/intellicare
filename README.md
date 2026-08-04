@@ -282,9 +282,19 @@ rather than refusing it — so a send hangs and then reports `Connection timeout
 however correct the credentials are. The same Gmail App Password delivers in
 under three seconds from a developer machine.
 
-The mail service therefore chooses its transport from configuration: Brevo's
-HTTP API when `BREVO_API_KEY` is set, SMTP when it is not, and a reported skip
-when neither is. Nothing is configured on the deployment, so:
+The mail service therefore chooses its transport from configuration: an HTTPS
+provider when one is configured (`RESEND_API_KEY` or `BREVO_API_KEY`), SMTP when
+neither is, and a reported skip when nothing is.
+
+**To switch delivery on quickly** — for a demonstration, say — create a
+[Resend](https://resend.com) account, and set `RESEND_API_KEY` along with
+`MAIL_FROM=onboarding@resend.dev`. That sends immediately with no domain to
+verify. The limitation is that it will only deliver to the address the account
+was registered with, so it demonstrates the feature honestly but does not serve
+a real clinic; Brevo, which verifies one sender and then delivers to anybody, is
+the answer for that.
+
+With nothing configured:
 
 - an invitation is created and the link is shown to the administrator to pass
   on, rather than being emailed to the patient

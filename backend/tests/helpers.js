@@ -68,7 +68,7 @@ const requireRunningApi = async () => {
 // Every variable that would let the suite send a real message. Tests that drive
 // the mail path in process switch them all off; naming them in one place means
 // adding a third provider cannot quietly leave the tests posting to it.
-const MAIL_SETTINGS = ['BREVO_API_KEY', 'SMTP_HOST', 'SMTP_USER'];
+const MAIL_SETTINGS = ['RESEND_API_KEY', 'BREVO_API_KEY', 'SMTP_HOST', 'SMTP_USER'];
 
 // Silences outgoing mail and hands back the means to restore it, so a developer
 // with working credentials does not have the suite write to seeded addresses.

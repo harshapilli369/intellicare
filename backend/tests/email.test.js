@@ -56,7 +56,7 @@ describe('Outgoing mail', () => {
     assert.equal(result.detail, 'no sender address configured');
   });
 
-  it('prefers the HTTP provider over SMTP when both are configured', () => {
+  it('prefers an HTTP provider over SMTP when both are configured', () => {
     process.env.BREVO_API_KEY = 'irrelevant';
     process.env.SMTP_HOST = 'smtp.example.com';
     process.env.SMTP_USER = 'someone@example.com';
@@ -68,6 +68,16 @@ describe('Outgoing mail', () => {
     // send, since sending needs a provider.
     assert.equal(brevoConfigured(), true);
     assert.equal(smtpConfigured(), true);
+    assert.equal(mailConfigured(), true);
+  });
+
+  it('recognises Resend as a provider in its own right', () => {
+    process.env.RESEND_API_KEY = 're_irrelevant';
+
+    const { resendConfigured, mailConfigured, smtpConfigured } = load();
+
+    assert.equal(resendConfigured(), true);
+    assert.equal(smtpConfigured(), false, 'no SMTP needed for it to be configured');
     assert.equal(mailConfigured(), true);
   });
 
