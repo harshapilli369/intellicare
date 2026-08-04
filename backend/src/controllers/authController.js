@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { User } = require('../models/mysql');
+const { User, Patient } = require('../models/mysql');
 const { sequelize } = require('../config/mysql');
 const invitationService = require('../services/invitationService');
 
@@ -22,22 +22,41 @@ const publicUser = (user) => ({
 // hand themselves a clinician or administrator account. Staff are created
 // through createStaff below.
 const register = async (req, res, next) => {
+  const transaction = await sequelize.transaction();
   try {
     const { email, password, name, phone } = req.body;
 
-    const existing = await User.findOne({ where: { email } });
-    if (existing) return res.status(409).json({ message: 'Email already registered' });
+    const existing = await User.findOne({ where: { email }, transaction });
+    if (existing) {
+      await transaction.rollback();
+      return res.status(409).json({ message: 'Email already registered' });
+    }
 
-    const user = await User.create({
-      email,
-      passwordHash: await bcrypt.hash(password, 10),
-      name,
-      phone,
-      role: 'patient',
-    });
+    const user = await User.create(
+      {
+        email,
+        passwordHash: await bcrypt.hash(password, 10),
+        name,
+        phone,
+        role: 'patient',
+      },
+      { transaction }
+    );
+
+    // A patient is two rows: the account they sign in with, and the clinical
+    // profile everything else hangs off. This created only the first, so
+    // somebody who signed up could authenticate and then not use any of it -
+    // their dashboard, appointments, intake and reports all resolve through the
+    // profile, and there was not one. Written in the same transaction as the
+    // account, because a patient with only half of themselves on file is not a
+    // usable record.
+    await Patient.create({ userId: user.id }, { transaction });
+
+    await transaction.commit();
 
     res.status(201).json({ success: true, token: signToken(user), user: publicUser(user) });
   } catch (err) {
+    if (!transaction.finished) await transaction.rollback();
     next(err);
   }
 };

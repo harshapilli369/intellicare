@@ -127,18 +127,46 @@ describe('Screen data', () => {
       assert.equal((await get(`/ai/patient/${otherId}/summaries`, patient.token)).status, 403);
     });
 
-    it('gives a brand new account an empty list rather than an error', async () => {
+    // Everything a patient reaches on their first visit, not just the one
+    // endpoint that happens to tolerate a half-built account.
+    //
+    // This test used to check `/appointments` alone, which returns an empty
+    // list whether or not the account has a clinical profile - so it passed
+    // while public sign-up was creating the sign-in account and not the
+    // profile, and every other patient screen answered "we could not find
+    // your dashboard". Signing up is only worth anything if what follows works.
+    it('gives a brand new account a usable set of screens', async () => {
       const { post, PASSWORD, unique } = require('./helpers');
       const email = `${unique('fresh')}@example.com`;
+
       const created = await post('/auth/register', null, {
         email,
         password: PASSWORD,
         name: 'Fresh Patient',
       });
+      assert.equal(created.status, 201);
+      const token = created.json.token;
 
-      const { status, json } = await get('/appointments', created.json.token);
-      assert.equal(status, 200);
-      assert.deepEqual(json.appointments, []);
+      const dashboard = await get('/dashboard/patient', token);
+      assert.equal(dashboard.status, 200, 'the dashboard loads');
+      assert.ok(dashboard.json.patientId, 'and the account has a clinical profile behind it');
+
+      const appointments = await get('/appointments', token);
+      assert.equal(appointments.status, 200);
+      assert.deepEqual(appointments.json.appointments, [], 'nothing booked yet');
+
+      const reports = await get(`/ai/patient/${dashboard.json.patientId}/summaries`, token);
+      assert.equal(reports.status, 200, 'reports load');
+
+      const outstanding = await get('/intake/outstanding', token);
+      assert.equal(outstanding.status, 200, 'outstanding intake loads');
+
+      const preferences = await get('/patients/me/reminder-preferences', token);
+      assert.equal(preferences.status, 200, 'reminder settings load');
+
+      const record = await get(`/patients/${dashboard.json.patientId}`, token);
+      assert.equal(record.status, 200, 'they can read their own record');
+      assert.equal(record.json.patient.name, 'Fresh Patient');
     });
   });
 
