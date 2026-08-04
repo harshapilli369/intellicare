@@ -64,9 +64,11 @@ const PatientsList = () => {
             placeholder="Search Patient Name or Condition"
           />
         </div>
+        {/* One button rather than two: the screen it opens offers both a form
+            and a file, so there is nothing to choose between out here. */}
         {user?.role === 'admin' && (
-          <Link to="/admin/patients/import" className="btn-outline whitespace-nowrap">
-            Import Patients
+          <Link to="/admin/patients/new" className="btn-outline whitespace-nowrap">
+            + Add Patients
           </Link>
         )}
       </div>

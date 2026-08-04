@@ -2,6 +2,7 @@
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
+import AddPatientTabs from '../../components/patients/AddPatientTabs';
 import { createPatient } from '../../services/patientApi';
 import { rules, validate } from '../../utils/validation';
 
@@ -113,8 +114,14 @@ const AddPatient = () => {
 
   return (
     <div className="mx-auto max-w-3xl">
+      <AddPatientTabs />
+
       <form onSubmit={submit} className="rounded-2xl border border-slate-300 bg-white p-8">
         <div className="space-y-6">
+          <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">
+            Patient details
+          </h2>
+
           <div>
             <label htmlFor="name" className="text-sm font-bold text-slate-900">
               Patient Name
