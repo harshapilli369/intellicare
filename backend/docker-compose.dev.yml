@@ -1,0 +1,48 @@
+# Local MySQL for development. Production uses MySQL on Railway; this gives every
+# developer the same local database without installing MySQL directly.
+#
+#   docker compose -f backend/docker-compose.dev.yml up -d
+#
+# It reads backend/.env, so the container is created with the same host port,
+# database, user and password the application is configured to use. Set those in
+# .env once and both sides agree.
+#
+# The host port defaults to 3307 rather than 3306. A locally installed MySQL
+# usually holds 3306 already, and binding a port that is taken makes the
+# container fail to start. Override with MYSQL_PORT if 3307 is busy too.
+#
+# Defaults, used when .env does not set them:
+#   MYSQL_PORT=3307  MYSQL_USER=intellicare
+#   MYSQL_PASSWORD=intellicare  MYSQL_DATABASE=intellicare
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: intellicare-mysql-dev
+    restart: unless-stopped
+    ports:
+      - '${MYSQL_PORT:-3307}:3306'
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-intellicare}
+      MYSQL_USER: ${MYSQL_USER:-intellicare}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-intellicare}
+    volumes:
+      - intellicare-mysql-data:/var/lib/mysql
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'mysqladmin',
+          'ping',
+          '-h',
+          'localhost',
+          '-uroot',
+          '-p${MYSQL_ROOT_PASSWORD:-root}',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  intellicare-mysql-data:

@@ -1,0 +1,97 @@
+# Render reads this to build the backend service. The databases are not defined
+# here: MySQL lives on Railway and MongoDB on Atlas, which is the separation of
+# tiers the project set out to demonstrate.
+#
+# Everything secret is marked `sync: false`, meaning Render asks for the value
+# rather than reading it from this file. Nothing sensitive belongs in the
+# repository, least of all one that is public.
+services:
+  - type: web
+    name: intellicare-api
+    runtime: node
+    plan: free
+    region: ohio
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+
+      # Signing key for sessions. At least 32 characters; the server refuses to
+      # start on a short or placeholder value.
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_EXPIRES_IN
+        value: 7d
+
+      # The one browser origin allowed to call this API. Without it the server
+      # refuses to start in production, rather than quietly accepting any site.
+      - key: CLIENT_URL
+        sync: false
+
+      # MySQL on Railway, over its public proxy. Paste Railway's
+      # MYSQL_PUBLIC_URL whole rather than retyping the parts: one string is far
+      # harder to get wrong, and a mistyped password reads as "access denied".
+      - key: MYSQL_URL
+        sync: false
+
+      # MongoDB on Atlas.
+      - key: MONGODB_URI
+        sync: false
+
+      # Google Gemini, used only from the server so the key never reaches a
+      # browser.
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.1-flash-lite
+
+      # Clinic hours and the windows the scheduling rules use.
+      - key: CLINIC_OPEN_HOUR
+        value: 9
+      - key: CLINIC_CLOSE_HOUR
+        value: 17
+      - key: APPOINTMENT_SLOT_MINUTES
+        value: 30
+      - key: APPOINTMENT_CHANGE_WINDOW_HOURS
+        value: 24
+      - key: NOTE_EDIT_WINDOW_HOURS
+        value: 24
+
+      # Outgoing mail, over Brevo's HTTPS API.
+      #
+      # Not SMTP: this plan blocks outbound SMTP, and blocks it by swallowing
+      # the connection rather than refusing it, so a send hangs and then reports
+      # "Connection timeout" however correct the credentials are. The same Gmail
+      # App Password sends in under three seconds from a developer machine.
+      # Nothing blocks port 443, so an HTTP provider is the path that delivers.
+      #
+      # MAIL_FROM must be an address verified in the Brevo account; it refuses
+      # any other sender. Sending to arbitrary recipients additionally needs a
+      # verified sending domain - until then it delivers only to the account
+      # holder's own address.
+      #
+      # Without these the application still runs: mail reports itself as skipped
+      # and an invitation link can be passed on by hand from the patient record.
+      - key: BREVO_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+
+      # How long an invitation to set a password stays good.
+      - key: INVITATION_LIFETIME_DAYS
+        value: 7
+
+      # Appointment reminders. The free plan sleeps an idle service, so the scan
+      # only runs while something is keeping the service awake; reminders are
+      # demonstrated rather than relied upon.
+      - key: REMINDER_OFFSETS_HOURS
+        value: 24,1
+      - key: REMINDER_CRON
+        value: "*/15 * * * *"
+      - key: REMINDERS_ENABLED
+        value: true

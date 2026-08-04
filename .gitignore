@@ -1,9 +1,42 @@
+# Dependencies
 node_modules/
+
+# Environment variables
 .env
 .env.local
 .env.production
+.env.development
+
+# Build output
 dist/
 build/
-.DS_Store
+
+# Logs
 *.log
+logs/
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Local tool settings. Kept out of the repository because they hold machine
+# specific paths and, in the past, credentials pasted into a command.
+.claude/
+
+# Testing
 coverage/
+
+# Uploads (multer temp files)
+backend/uploads/
+
+# Cache
+.npm
+.eslintcache
+
+# Build output from the bundle report
+frontend/dist/
