@@ -3,5 +3,11 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "framework": "vite",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    {
+      "//": "Every path is a client route and must reach index.html, since the router lives in the browser and the server has no such pages. Everything except /assets: those are the built JavaScript and CSS files, named after a hash of their contents, and a deployment renames all of them. Sending a request for one that no longer exists to index.html answered it with a page of HTML at 200 OK, and a browser expecting a JavaScript module made what it could of that - which is a rendering error on a working application whose only fault was being one version behind. Excluded, a name that has gone returns 404, which is what it is.",
+      "source": "/((?!assets/).*)",
+      "destination": "/index.html"
+    }
+  ]
 }

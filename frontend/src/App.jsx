@@ -1,9 +1,10 @@
-import { lazy, Suspense } from 'react';
+import { Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 
 import { useAuth, homePathFor } from './context/AuthContext';
 import ProtectedRoute from './routes/ProtectedRoute';
 import AppLayout from './components/layout/AppLayout';
+import lazyWithReload from './utils/lazyWithReload';
 
 // The screens somebody sees before they are signed in stay in the first bundle:
 // making a visitor wait for a second request to be shown a login form would be
@@ -14,27 +15,32 @@ import LaunchPage from './pages/LaunchPage';
 
 // Everything behind a sign-in is fetched when it is first opened.
 //
+// `lazyWithReload` rather than React's `lazy`: a deployment renames every one of
+// these files, and a browser still holding the previous index.html asks for
+// names that have gone. See the note in that module - the recovery is a reload,
+// and it happens without anybody being shown an error for it.
+//
 // One bundle meant a patient downloaded every administrative and clinical
 // screen they will never be permitted to see - the import screen, the
 // prescription pad, the AI summary editor - before their own dashboard could
 // paint. Split by route, a browser asks for a screen when somebody navigates to
 // it, and the chunks for the other two roles are never requested at all.
-const AcceptInvitation = lazy(() => import('./pages/auth/AcceptInvitation'));
-const ClinicianDashboard = lazy(() => import('./pages/clinician/Dashboard'));
-const ClinicianSchedule = lazy(() => import('./pages/clinician/Schedule'));
-const AISummaries = lazy(() => import('./pages/clinician/AISummaries'));
-const AdminDashboard = lazy(() => import('./pages/admin/Dashboard'));
-const AdminAppointments = lazy(() => import('./pages/admin/Appointments'));
-const AddPatient = lazy(() => import('./pages/admin/AddPatient'));
-const ImportPatients = lazy(() => import('./pages/admin/ImportPatients'));
-const PatientDashboard = lazy(() => import('./pages/patient/Dashboard'));
-const PersonalInformation = lazy(() => import('./pages/patient/PersonalInformation'));
-const PatientSummaries = lazy(() => import('./pages/patient/Summaries'));
-const PatientAppointments = lazy(() => import('./pages/patient/Appointments'));
-const BookAppointment = lazy(() => import('./pages/patient/BookAppointment'));
-const PatientsList = lazy(() => import('./pages/patients/PatientsList'));
-const PatientDetail = lazy(() => import('./pages/patients/PatientDetail'));
-const PrintPrescription = lazy(() => import('./pages/prescriptions/PrintPrescription'));
+const AcceptInvitation = lazyWithReload(() => import('./pages/auth/AcceptInvitation'));
+const ClinicianDashboard = lazyWithReload(() => import('./pages/clinician/Dashboard'));
+const ClinicianSchedule = lazyWithReload(() => import('./pages/clinician/Schedule'));
+const AISummaries = lazyWithReload(() => import('./pages/clinician/AISummaries'));
+const AdminDashboard = lazyWithReload(() => import('./pages/admin/Dashboard'));
+const AdminAppointments = lazyWithReload(() => import('./pages/admin/Appointments'));
+const AddPatient = lazyWithReload(() => import('./pages/admin/AddPatient'));
+const ImportPatients = lazyWithReload(() => import('./pages/admin/ImportPatients'));
+const PatientDashboard = lazyWithReload(() => import('./pages/patient/Dashboard'));
+const PersonalInformation = lazyWithReload(() => import('./pages/patient/PersonalInformation'));
+const PatientSummaries = lazyWithReload(() => import('./pages/patient/Summaries'));
+const PatientAppointments = lazyWithReload(() => import('./pages/patient/Appointments'));
+const BookAppointment = lazyWithReload(() => import('./pages/patient/BookAppointment'));
+const PatientsList = lazyWithReload(() => import('./pages/patients/PatientsList'));
+const PatientDetail = lazyWithReload(() => import('./pages/patients/PatientDetail'));
+const PrintPrescription = lazyWithReload(() => import('./pages/prescriptions/PrintPrescription'));
 
 // Wraps a page for one role: requires sign-in, checks the role, and renders it
 // inside the shared shell.
