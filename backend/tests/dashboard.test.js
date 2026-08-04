@@ -1,7 +1,7 @@
 const { describe, it, before } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { SEEDED, get, login, requireRunningApi, daysFromNow } = require('./helpers');
+const { SEEDED, get, login, requireRunningApi, daysFromNow, asDate } = require('./helpers');
 
 describe('Clinician dashboard', () => {
   let clinician;
@@ -57,9 +57,29 @@ describe('Clinician dashboard', () => {
   it('marks the days of the month that have appointments', async () => {
     assert.ok(dashboard.busyDays.every((day) => Number.isInteger(day) && day >= 1 && day <= 31));
 
-    // The seed books visits today, so today's date must be marked.
-    const today = new Date().getDate();
-    assert.ok(dashboard.busyDays.includes(today), "today is marked when today has visits");
+    // Checked against the appointments that actually exist this month, rather
+    // than against "today". The seed books visits on the day it is run, so an
+    // assertion about today only holds on the day somebody seeded - this failed
+    // two days after seeding, which is a fact about the fixture and not about
+    // the calendar.
+    const now = new Date();
+    const first = new Date(now.getFullYear(), now.getMonth(), 1);
+    const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+    const { json } = await get(
+      `/appointments?clinicianId=${clinician.user.id}&from=${asDate(first)}&to=${asDate(last)}`,
+      clinician.token
+    );
+
+    const daysWithVisits = new Set(
+      json.appointments
+        .filter((a) => a.status !== 'cancelled')
+        .map((a) => new Date(a.scheduledAt).getDate())
+    );
+
+    for (const day of daysWithVisits) {
+      assert.ok(dashboard.busyDays.includes(day), `day ${day} has visits and must be marked`);
+    }
   });
 
   it('answers for another month without complaint', async () => {
