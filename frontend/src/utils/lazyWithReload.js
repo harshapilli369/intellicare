@@ -24,6 +24,12 @@ import { lazy } from 'react';
 // Reloading fixes it, because a reload fetches the current index.html and with
 // it the current names. That is the whole repair, and there is no reason to
 // make a person discover it by pressing a button: do it for them.
+//
+// The other half of this lives in vercel.json, whose rewrite now excludes
+// /assets so a name that has gone returns 404 rather than a page of HTML. That
+// file cannot say so itself - Vercel validates it with `additionalProperties:
+// false`, so a comment key makes the whole deployment fail to build - which is
+// why the reason is written down here instead.
 const RELOADED_AT = 'intellicare:chunk-reload';
 
 // Long enough to cover the reload, short enough that a failure half an hour
