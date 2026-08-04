@@ -6,6 +6,81 @@ import { importPatients } from '../../services/patientApi';
 
 const ROW_LIMIT_SHOWN = 200;
 
+// A file somebody can download, edit and upload without having read anything.
+//
+// Two good rows and one deliberately broken one: the third has no email, so a
+// first import demonstrates what a rejection looks like and that the good rows
+// still go in. An example that only ever succeeds teaches half the behaviour.
+const SAMPLE_ROWS = [
+  {
+    name: 'Ada Lovelace',
+    email: 'ada.lovelace@example.com',
+    phone: '9025550100',
+    dateOfBirth: '1985-12-10',
+    sex: 'Female',
+    address: '12 Barrington Street, Halifax',
+    healthCardNumber: 'NS-1234-5678',
+    medicalHistory: 'Asthma; Migraine',
+    allergies: 'Penicillin',
+  },
+  {
+    name: 'Grace Hopper',
+    email: 'grace.hopper@example.com',
+    phone: '9025550101',
+    dateOfBirth: '1979-06-22',
+    sex: 'Female',
+    address: '48 Spring Garden Road, Halifax',
+    healthCardNumber: 'NS-2345-6789',
+    medicalHistory: 'Hypertension',
+    allergies: '',
+  },
+  {
+    name: 'Missing Email',
+    email: '',
+    phone: '9025550102',
+    dateOfBirth: '',
+    sex: 'Other',
+    address: '',
+    healthCardNumber: '',
+    medicalHistory: '',
+    allergies: '',
+  },
+];
+
+const COLUMNS = Object.keys(SAMPLE_ROWS[0]);
+
+const toCsv = (rows) =>
+  [
+    COLUMNS.join(','),
+    // Quoted, because the list fields contain semicolons and an address
+    // contains a comma - which is exactly the kind of thing a hand-written
+    // example gets wrong and then blames the parser for.
+    ...rows.map((row) =>
+      COLUMNS.map((column) => {
+        const value = String(row[column] ?? '');
+        return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+      }).join(',')
+    ),
+  ].join('\n');
+
+const downloadSample = (format) => {
+  const contents =
+    format === 'json' ? JSON.stringify(SAMPLE_ROWS, null, 2) : toCsv(SAMPLE_ROWS);
+
+  const blob = new Blob([contents], {
+    type: format === 'json' ? 'application/json' : 'text/csv',
+  });
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `intellicare-patients-sample.${format}`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+};
+
 // The invitation link, with a way to take a copy of it. Only shown when mail
 // could not deliver it, since otherwise the patient already has it.
 const InviteLink = ({ link }) => {
@@ -111,6 +186,29 @@ const ImportPatients = () => {
           choose one. No password is created on anyone&apos;s behalf, and nothing below needs
           writing down &mdash; a patient&apos;s record will issue a fresh invitation at any time.
         </p>
+
+        {/* A template, because describing a file format in prose and then
+            asking somebody to build one from scratch is the step where bulk
+            import usually stalls. Downloading this, editing two lines and
+            uploading it is a far shorter path to a first successful import
+            than reading the paragraph above carefully. */}
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => downloadSample('csv')}
+            className="text-sm text-brand hover:underline"
+          >
+            Download a sample CSV
+          </button>
+          <span className="text-slate-300">|</span>
+          <button
+            type="button"
+            onClick={() => downloadSample('json')}
+            className="text-sm text-brand hover:underline"
+          >
+            Download a sample JSON
+          </button>
+        </div>
 
         <input
           ref={fileInput}

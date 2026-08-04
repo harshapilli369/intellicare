@@ -143,6 +143,59 @@ describe('Invitations for imported patients', () => {
     });
   });
 
+  // Onboarding one patient by hand should work the way onboarding fifty does.
+  // It did not: import invited them, while adding one required an administrator
+  // to invent a password and then find a way to tell them what it was.
+  describe('adding a single patient', () => {
+    const add = (body) => post('/patients', admin.token, body);
+
+    it('invites them when no password is given', async () => {
+      const email = `added.${Date.now()}.${Math.floor(Math.random() * 1e6)}@example.com`;
+      const { status, json } = await add({ name: 'Added Patient', email, sex: 'Other' });
+
+      assert.equal(status, 201);
+      assert.ok(json.invitation?.link, 'an invitation comes back with the patient');
+
+      // Nothing can sign in yet: the account holds a secret nobody has seen.
+      const attempt = await post('/auth/login', null, { email, password: 'Password123!' });
+      assert.equal(attempt.status, 401);
+
+      // And the link does what it should.
+      const token = json.invitation.link.split('/invite/')[1];
+      const redeemed = await post(`/auth/invite/${token}`, null, { password: 'TheyChose123!' });
+      assert.equal(redeemed.status, 200);
+
+      const after = await post('/auth/login', null, { email, password: 'TheyChose123!' });
+      assert.equal(after.status, 200, 'they can sign in with what they chose');
+    });
+
+    // Still supported, for a patient at the desk who wants it done there and
+    // then - but it is the deliberate choice rather than the only one.
+    it('sets a password instead when one is supplied', async () => {
+      const email = `desk.${Date.now()}.${Math.floor(Math.random() * 1e6)}@example.com`;
+      const { status, json } = await add({
+        name: 'Desk Patient',
+        email,
+        password: 'SetAtTheDesk1!',
+      });
+
+      assert.equal(status, 201);
+      assert.equal(json.invitation, null, 'nothing to invite them to');
+
+      const attempt = await post('/auth/login', null, { email, password: 'SetAtTheDesk1!' });
+      assert.equal(attempt.status, 200);
+    });
+
+    it('still refuses a password too short to be worth having', async () => {
+      const { status } = await add({
+        name: 'Weak Password',
+        email: `weak.${Date.now()}@example.com`,
+        password: 'short',
+      });
+      assert.equal(status, 400);
+    });
+  });
+
   describe('what an import produces', () => {
     it('issues an invitation instead of inventing a password', async () => {
       const { row } = await importOne();
