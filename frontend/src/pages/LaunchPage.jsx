@@ -28,7 +28,7 @@ function LaunchPage() {
 
         <div className="mt-16">
           <p className="text-xs font-medium tracking-wide text-gray-400 uppercase">
-            Used and Trusted By
+            Can be used by:
           </p>
 
           <ul className="mt-5 grid grid-cols-2 gap-x-8 gap-y-4 max-w-sm mx-auto text-left">
@@ -45,7 +45,6 @@ function LaunchPage() {
                     alt={`${partner.name} logo`}
                     className="h-6 w-auto max-w-[5rem] object-contain"
                   />
-                  <span>{partner.name}</span>
                 </a>
               </li>
             ))}
