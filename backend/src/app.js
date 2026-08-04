@@ -155,6 +155,28 @@ app.use('/api/ai', aiRoutes);
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
+// Somebody who opens this address in a browser is almost always looking for the
+// application, which is served from somewhere else entirely. Express answers an
+// unmatched route with "Cannot GET /", which reads as broken rather than as
+// "you are in the right building, wrong door" - and this address is the one
+// that gets pasted into a report or a submission form by mistake.
+app.get('/', (req, res) =>
+  res.json({
+    service: 'IntelliCare API',
+    status: 'ok',
+    message: 'This is the API. The application itself is served separately.',
+    application: process.env.CLIENT_URL || null,
+    health: '/api/health',
+  })
+);
+
+// Anything else under /api that matched no route. Without this it falls through
+// to the same bare Express 404, which tells a caller nothing about whether they
+// got the path wrong or the method.
+app.use('/api', (req, res) =>
+  res.status(404).json({ message: `No such endpoint: ${req.method} ${req.originalUrl}` })
+);
+
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
