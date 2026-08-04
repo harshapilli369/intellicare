@@ -65,7 +65,10 @@ router.post(
   authorize('admin'),
   [
     body('email').isString().bail().trim().isEmail().normalizeEmail(),
-    body('password').isString().bail().isLength({ min: 8, max: 200 }),
+    // Optional, because the ordinary way to onboard somebody is to invite them
+    // to choose their own. A password here is for the case where a patient is
+    // standing at the desk and wants one set for them there and then.
+    body('password').optional({ checkFalsy: true }).isString().bail().isLength({ min: 8, max: 200 }),
     body('name').isString().bail().trim().notEmpty(),
     ...demographics,
   ],

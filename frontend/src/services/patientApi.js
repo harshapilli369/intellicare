@@ -11,8 +11,13 @@ export const listPatients = ({ page = 1, limit = 10, search = '', sex = '' } = {
 
 export const getPatient = (id) => api.get(`/patients/${id}`).then((r) => r.data.patient);
 
+// Returns the invitation alongside the patient when one was issued, so the
+// caller can say whether an email went and offer the link when it did not.
 export const createPatient = (payload) =>
-  api.post('/patients', payload).then((r) => r.data.patient);
+  api.post('/patients', payload).then((r) => ({
+    patient: r.data.patient,
+    invitation: r.data.invitation || null,
+  }));
 
 export const updatePatient = (id, payload) =>
   api.put(`/patients/${id}`, payload).then((r) => r.data.patient);

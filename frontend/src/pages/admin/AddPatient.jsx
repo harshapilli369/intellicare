@@ -37,6 +37,9 @@ const AddPatient = () => {
   });
   // Problems by field name, so each input can show its own.
   const [invalid, setInvalid] = useState({});
+  // Whether to invite them or set a password here. Inviting is the default
+  // because it is the one that leaves no password in anybody else's hands.
+  const [invite, setInvite] = useState(true);
   const [message, setMessage] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -45,12 +48,15 @@ const AddPatient = () => {
   // The same rules the API applies. Checked here first so an empty name or a
   // malformed address is caught while the person is still looking at the form,
   // rather than after a round trip that tells them the same thing.
+  //
+  // The password is only required when the administrator has chosen to set one:
+  // an invited patient chooses their own, and there is nothing to validate.
   const schema = {
     name: rules.required('A name'),
     email: [rules.required('An email address'), rules.email],
-    password: [rules.required('A password'), rules.password],
     dateOfBirth: rules.pastDate,
     healthCardNumber: rules.maxLength(40, 'The health card number'),
+    ...(invite ? {} : { password: [rules.required('A password'), rules.password] }),
   };
 
   const submit = async (event) => {
@@ -71,12 +77,25 @@ const AddPatient = () => {
     setSaving(true);
 
     try {
-      const patient = await createPatient({
+      const { patient, invitation } = await createPatient({
         ...form,
+        // Deliberately absent when inviting, rather than sent empty: the API
+        // decides what to do from whether there is one.
+        password: invite ? undefined : form.password,
         sex: form.sex || undefined,
         dateOfBirth: form.dateOfBirth || undefined,
       });
-      toast.success(`${patient.name} added`);
+
+      if (!invitation) {
+        toast.success(`${patient.name} added`);
+      } else if (invitation.delivery === 'sent') {
+        toast.success(`${patient.name} added and emailed an invitation`);
+      } else {
+        // Nothing was emailed, so the link has to travel by hand - and it is on
+        // the record they are about to land on, not lost with this message.
+        toast.info(`${patient.name} added. No email was sent - use Send invitation on their record.`);
+      }
+
       navigate(`/admin/patients/${patient.id}`);
     } catch (err) {
       // The server checks everything again and knows things the browser cannot -
@@ -178,20 +197,62 @@ const AddPatient = () => {
             />
           </Row>
 
-          {/* The account the patient signs in with is created alongside the
-              record, so a first password has to be set here. */}
-          <Row label="Temporary Password" htmlFor="password" error={errorFor('password')}>
-            <input
-              id="password"
-              type="password"
-              value={form.password}
-              onChange={set('password')}
-              placeholder="At least 8 characters"
-              required
-              minLength={8}
-              className={inputClass}
-            />
-          </Row>
+          {/* How the patient gets into the account created alongside this
+              record. Inviting them is the default and the better answer: no
+              password ever exists for somebody else to know, and there is
+              nothing to relay. Setting one here is for a patient standing at
+              the desk who wants it done there and then. */}
+          <div className="border-t border-slate-200 pt-6">
+            <p className="text-sm font-bold text-slate-900">How should they sign in?</p>
+
+            <label className="mt-3 flex items-start gap-3">
+              <input
+                type="radio"
+                name="access"
+                checked={invite}
+                onChange={() => setInvite(true)}
+                className="mt-1 h-4 w-4 border-slate-300 text-brand focus:ring-brand"
+              />
+              <span className="text-sm text-slate-800">
+                Email them an invitation to choose their own password
+                <span className="block text-xs text-slate-500">
+                  Recommended. The link works once and expires in seven days.
+                </span>
+              </span>
+            </label>
+
+            <label className="mt-3 flex items-start gap-3">
+              <input
+                type="radio"
+                name="access"
+                checked={!invite}
+                onChange={() => setInvite(false)}
+                className="mt-1 h-4 w-4 border-slate-300 text-brand focus:ring-brand"
+              />
+              <span className="text-sm text-slate-800">
+                Set a password for them now
+                <span className="block text-xs text-slate-500">
+                  You will have to tell them what it is.
+                </span>
+              </span>
+            </label>
+
+            {!invite && (
+              <div className="mt-4">
+                <Row label="Temporary Password" htmlFor="password" error={errorFor('password')}>
+                  <input
+                    id="password"
+                    type="password"
+                    value={form.password}
+                    onChange={set('password')}
+                    placeholder="At least 8 characters"
+                    minLength={8}
+                    className={inputClass}
+                  />
+                </Row>
+              </div>
+            )}
+          </div>
         </div>
 
         {message && (

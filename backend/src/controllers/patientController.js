@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { Op } = require('sequelize');
 
@@ -174,12 +175,26 @@ const create = async (req, res, next) => {
       return res.status(409).json({ message: 'Email already registered' });
     }
 
+    // No password given means the patient is invited to choose their own, which
+    // is the ordinary way to onboard somebody: nobody else ever knows it, and
+    // there is nothing to relay. A password is only set here when an
+    // administrator deliberately supplies one - a patient at the desk who wants
+    // it done there and then.
+    //
+    // Until they redeem the invitation the account holds an unusable random
+    // secret, so it cannot be signed into by anybody, including whoever created
+    // it.
+    const invited = !password;
+
     // The sign-in account and the clinical profile are written together: a
     // patient with only one of the two is not a usable record.
     const user = await User.create(
       {
         email,
-        passwordHash: await bcrypt.hash(password, 10),
+        passwordHash: await bcrypt.hash(
+          password || crypto.randomBytes(32).toString('base64url'),
+          10
+        ),
         name,
         phone,
         role: 'patient',
@@ -200,10 +215,24 @@ const create = async (req, res, next) => {
       { transaction }
     );
 
+    // Issued inside the transaction, so a patient is never left created without
+    // the means to get in.
+    const invitation = invited ? await invitationService.issue(user.id, { transaction }) : null;
+
     await transaction.commit();
 
+    // Only after the row is committed - a message cannot be recalled if the
+    // transaction then rolls back.
+    const delivery = invitation ? await invitationService.send(user, invitation) : null;
+
     patient.User = user;
-    res.status(201).json({ success: true, patient: shape(patient) });
+    res.status(201).json({
+      success: true,
+      patient: shape(patient),
+      invitation: invitation
+        ? { link: invitation.link, expiresAt: invitation.expiresAt, delivery }
+        : null,
+    });
   } catch (err) {
     if (!transaction.finished) await transaction.rollback();
     next(err);
