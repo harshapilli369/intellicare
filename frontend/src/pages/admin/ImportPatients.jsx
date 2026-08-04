@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
+import AddPatientTabs from '../../components/patients/AddPatientTabs';
 import { importPatients } from '../../services/patientApi';
 
 const ROW_LIMIT_SHOWN = 200;
@@ -163,12 +163,12 @@ const ImportPatients = () => {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <Link to="/admin/patients" className="text-sm text-brand hover:underline">
-        &larr; Back to patients
-      </Link>
+      <AddPatientTabs />
 
-      <div className="mt-4 rounded-2xl border border-slate-300 bg-white p-8">
-        <h1 className="text-2xl font-bold text-slate-900">Import Patients</h1>
+      <div className="rounded-2xl border border-slate-300 bg-white p-8">
+        <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">
+          The file
+        </h2>
         <p className="mt-2 text-sm text-slate-500">
           Upload a CSV or JSON file to add or update patients in bulk. A row whose email is
           already on file brings that patient up to date; columns the file leaves out are not

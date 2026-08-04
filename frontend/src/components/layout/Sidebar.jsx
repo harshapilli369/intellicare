@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 // Navigation shown per role. Feature links are added as those screens are built;
@@ -12,9 +12,14 @@ const LINKS = {
   ],
   admin: [
     { to: '/admin', label: 'Dashboard', end: true },
-    { to: '/admin/patients', label: 'Patients' },
+    // `end`, because without it every /admin/patients/* route lit this up as
+    // well as the one it belongs to - two items highlighted, neither of them
+    // telling you where you were.
+    { to: '/admin/patients', label: 'Patients', end: true },
     { to: '/admin/appointments', label: 'Appointments' },
-    { to: '/admin/patients/new', label: 'Add Patient' },
+    // Adding one and importing a file are two tabs of one screen, so this stays
+    // lit on either of them.
+    { to: '/admin/patients/new', label: 'Add Patients', also: ['/admin/patients/import'] },
   ],
   patient: [
     { to: '/patient', label: 'Dashboard', end: true },
@@ -32,6 +37,7 @@ const roleLabel = {
 
 const Sidebar = () => {
   const { user } = useAuth();
+  const { pathname } = useLocation();
   const links = LINKS[user?.role] || [];
 
   return (
@@ -50,7 +56,9 @@ const Sidebar = () => {
             end={link.end}
             className={({ isActive }) =>
               `px-6 py-2.5 text-sm transition ${
-                isActive ? 'bg-brand-50 font-semibold text-brand' : 'text-slate-800 hover:bg-slate-50'
+                isActive || link.also?.includes(pathname)
+                  ? 'bg-brand-50 font-semibold text-brand'
+                  : 'text-slate-800 hover:bg-slate-50'
               }`
             }
           >
