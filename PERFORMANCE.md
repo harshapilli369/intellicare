@@ -43,7 +43,7 @@ an earlier run, so both sides of every comparison were produced the same way.
 
 ### 1. Response compression
 
-`compression` middleware, threshold 1 KB, level 7. The API answers almost
+`compression` middleware, threshold 1 KB, brotli quality 4. The API answers almost
 entirely in JSON — text with the same field names repeated on every row — which
 compresses far better than most payloads. Small answers are left alone, because
 below about a kilobyte the headers and the CPU cost more than the bytes saved.
@@ -165,10 +165,16 @@ excluded from both columns so the comparison is like for like.
 
 | | Before | After | Change |
 |---|---|---|---|
-| Initial JS | 340.5 KB | 258.7 KB | **−24%** |
-| Initial JS, gzipped | 103.2 KB | 88.5 KB | **−14%** |
-| Deferred | 0 | 98.0 KB across 28 chunks | fetched on demand |
+| Initial JS | 340.5 KB | 261.6 KB | **−23%** |
+| Initial JS, gzipped | 103.2 KB | 89.6 KB | **−13%** |
+| Deferred | 0 | 106.6 KB across 31 chunks | fetched on demand |
 | Stable across deployments | 0 KB | 239.1 KB (two vendor chunks) | cached, not re-downloaded |
+
+The "after" column is re-measured from the current build rather than left at the
+figure this document first reported (258.7 KB, 28 chunks). Features added since —
+invitations, the combined add-patient screen, the patient's own details page —
+are what moved it, and they moved the deferred column more than the initial one,
+which is the split doing its job.
 
 **The "after" figure carries a security upgrade that made it worse, and the
 number is left honest rather than flattered.** React Router was upgraded from 6
